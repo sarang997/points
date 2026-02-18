@@ -5,8 +5,17 @@
 (function () {
     'use strict';
 
-    const DATA_URL = 'data/points.json';
-    const MEME_DISPLAY_TIME = 4000; // ms per meme slide
+    // --- Supabase Config ---
+    // You will need to fill these in with your actual credentials
+    const SUPABASE_URL = 'https://kxyudtpxjgqekkmgpigb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4eXVkdHB4amdxZWtrbWdwaWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0NTEyODEsImV4cCI6MjA4NzAyNzI4MX0.alLyHpEXOUgAFQritkaWB6YM3O3c12yaBisgbB7UkXI';
+
+    let supabaseClient;
+    if (typeof supabase !== 'undefined') {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    const MEME_DISPLAY_TIME = 3000; // ms per notification card
     const RECENT_HOURS = 24;
 
     // --- Tier System ---
@@ -19,11 +28,37 @@
 
     // --- Data Loading ---
     async function loadData() {
+        if (!supabaseClient) {
+            console.error('Supabase client not initialized. Check your URL/Key.');
+            return { people: {}, events: [] };
+        }
+
         try {
-            const resp = await fetch(DATA_URL + '?t=' + Date.now());
-            return await resp.json();
+            // Fetch people and events in parallel
+            const [peopleRes, eventsRes] = await Promise.all([
+                supabaseClient.from('people').select('*'),
+                supabaseClient.from('events').select('*')
+            ]);
+
+            if (peopleRes.error) throw peopleRes.error;
+            if (eventsRes.error) throw eventsRes.error;
+
+            // Transform Supabase format back to our app format
+            const people = {};
+            peopleRes.data.forEach(p => {
+                people[p.id] = { name: p.name, avatar: p.avatar };
+            });
+
+            const events = eventsRes.data.map(e => ({
+                id: e.person_id,
+                date: e.date,
+                points: e.points,
+                reason: e.reason
+            }));
+
+            return { people, events };
         } catch (e) {
-            console.error('Failed to load data:', e);
+            console.error('Failed to load data from Supabase:', e);
             return { people: {}, events: [] };
         }
     }

@@ -11,6 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="admin-styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -21,14 +22,15 @@
     <!-- Header -->
     <header class="admin-header">
         <div class="admin-header-left">
-            <h1>⚙️ Admin Panel</h1>
-            <span class="admin-badge">PRESTIGE POINTS</span>
-        </div>
-        <div class="admin-header-right">
             <div class="git-status" id="git-status">
                 <span class="git-dot" id="git-dot"></span>
-                <span id="git-status-text">Checking...</span>
+                <span id="git-status-text">Syncing...</span>
             </div>
+            <h1>Vault Control Center</h1>
+        </div>
+        <div class="admin-header-right">
+            <a href="index.html" class="btn btn-ghost" style="margin-right: 10px;">← Back to Leaderboard</a>
+            <button class="btn btn-primary" id="push-btn">🔄 Refresh Data</button>
         </div>
     </header>
 
@@ -118,19 +120,7 @@
                 <div id="events-list" class="events-list"></div>
             </section>
 
-            <!-- Git Push -->
-            <section class="admin-card push-card">
-                <h2>🚀 Push to GitHub</h2>
-                <div class="form-group">
-                    <label for="commit-message">Commit Message</label>
-                    <input type="text" id="commit-message" placeholder="Update prestige points"
-                        value="Update prestige points">
-                </div>
-                <button class="btn btn-push" id="push-btn" disabled>
-                    <span class="push-icon">🚀</span> Push to GitHub
-                </button>
-                <div class="push-output" id="push-output"></div>
-            </section>
+
         </div>
     </main>
 
@@ -169,7 +159,15 @@
     </div>
 
     <script>
-        const API = 'http://localhost:3457/api';
+        // --- Supabase Config ---
+        const SUPABASE_URL = 'https://kxyudtpxjgqekkmgpigb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4eXVkdHB4amdxZWtrbWdwaWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0NTEyODEsImV4cCI6MjA4NzAyNzI4MX0.alLyHpEXOUgAFQritkaWB6YM3O3c12yaBisgbB7UkXI';
+
+        let supabaseClient;
+        if (typeof supabase !== 'undefined') {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
         let allData = { people: {}, events: [] };
         let showAll = false;
 
@@ -187,21 +185,62 @@
             }, 3000);
         }
 
-        // --- API Calls ---
-        async function api(path, method = 'GET', body = null) {
-            const opts = { method, headers: { 'Content-Type': 'application/json' } };
-            if (body) opts.body = JSON.stringify(body);
-            const res = await fetch(API + path, opts);
-            return res.json();
-        }
-
         // --- Load & Render ---
         async function refresh() {
-            allData = await api('/data');
-            renderPeopleSelect();
-            renderPeopleList();
-            renderEventsList();
-            checkGitStatus();
+            if (!supabaseClient) return;
+
+            try {
+                const [pRes, eRes] = await Promise.all([
+                    supabaseClient.from('people').select('*'),
+                    supabaseClient.from('events').select('*')
+                ]);
+
+                if (pRes.error) throw pRes.error;
+                if (eRes.error) throw eRes.error;
+
+                const people = {};
+                pRes.data.forEach(p => people[p.id] = { name: p.name, avatar: p.avatar });
+
+                // Map events to match old format
+                const events = eRes.data.map(e => ({
+                    id: e.person_id,
+                    date: e.date,
+                    points: e.points,
+                    reason: e.reason,
+                    db_id: e.id // keep db id for updates/deletes
+                }));
+
+                allData = { people, events };
+
+                renderPeopleSelect();
+                renderPeopleList();
+                renderEventsList();
+                updateStatus(true);
+            } catch (err) {
+                console.error('Refresh failed:', err);
+                toast('Failed to load data from Supabase', 'error');
+                updateStatus(false);
+            }
+        }
+
+        function updateStatus(ok) {
+            const dot = document.getElementById('git-dot');
+            const text = document.getElementById('git-status-text');
+            const pushBtn = document.getElementById('push-btn');
+
+            if (ok) {
+                dot.className = 'git-dot clean';
+                text.textContent = 'Connected to Supabase';
+            } else {
+                dot.className = 'git-dot';
+                text.textContent = 'Supabase Disconnected';
+            }
+
+            // Push button is now less relevant for data, but we'll keep it as a "Manual Sync"
+            // or just hide the push section if it's confusing.
+            // For now, let's just make it refresh.
+            pushBtn.disabled = false;
+            pushBtn.innerHTML = '🔄 Refresh Data';
         }
 
         function renderPeopleSelect() {
@@ -229,7 +268,6 @@
                 return;
             }
 
-            // Compute totals
             const totals = {};
             entries.forEach(([id]) => (totals[id] = 0));
             allData.events.forEach((e) => { if (totals[e.id] !== undefined) totals[e.id] += e.points; });
@@ -239,14 +277,14 @@
                 const sign = score >= 0 ? '+' : '';
                 const cls = score >= 0 ? 'positive' : 'negative';
                 return `
-          <div class="person-row">
-            <span class="person-avatar">${p.avatar}</span>
-            <span class="person-name">${p.name}</span>
-            <span class="person-id">@${id}</span>
-            <span class="person-score ${cls}">${sign}${score}</span>
-            <button class="btn-icon btn-delete" onclick="deletePerson('${id}')" title="Delete person">🗑️</button>
-          </div>
-        `;
+                    <div class="person-row">
+                        <span class="person-avatar">${p.avatar}</span>
+                        <span class="person-name">${p.name}</span>
+                        <span class="person-id">@${id}</span>
+                        <span class="person-score ${cls}">${sign}${score}</span>
+                        <button class="btn-icon btn-delete" onclick="deletePerson('${id}')" title="Delete person">🗑️</button>
+                    </div>
+                `;
             }).join('');
         }
 
@@ -259,7 +297,6 @@
                 return;
             }
 
-            // Sort by date descending
             const indexed = allData.events.map((e, i) => ({ ...e, originalIndex: i }));
             indexed.sort((a, b) => b.date.localeCompare(a.date) || b.originalIndex - a.originalIndex);
 
@@ -270,75 +307,52 @@
                 const sign = event.points >= 0 ? '+' : '';
                 const cls = event.points >= 0 ? 'positive' : 'negative';
                 return `
-          <div class="event-row">
-            <div class="event-main">
-              <span class="event-avatar">${person.avatar}</span>
-              <div class="event-info">
-                <div class="event-top">
-                  <span class="event-name">${person.name}</span>
-                  <span class="event-points ${cls}">${sign}${event.points}</span>
-                </div>
-                <div class="event-reason">${event.reason}</div>
-              </div>
-              <span class="event-date">${event.date}</span>
-            </div>
-            <div class="event-actions">
-              <button class="btn-icon" onclick="editEvent(${event.originalIndex})" title="Edit">✏️</button>
-              <button class="btn-icon btn-delete" onclick="deleteEvent(${event.originalIndex})" title="Delete">🗑️</button>
-            </div>
-          </div>
-        `;
+                    <div class="event-row">
+                        <div class="event-main">
+                            <span class="event-avatar">${person.avatar}</span>
+                            <div class="event-info">
+                                <div class="event-top">
+                                    <span class="event-name">${person.name}</span>
+                                    <span class="event-points ${cls}">${sign}${event.points}</span>
+                                </div>
+                                <div class="event-reason">${event.reason}</div>
+                            </div>
+                            <span class="event-date">${event.date}</span>
+                        </div>
+                        <div class="event-actions">
+                            <button class="btn-icon" onclick="editEvent(${event.originalIndex})" title="Edit">✏️</button>
+                            <button class="btn-icon btn-delete" onclick="deleteEvent(${event.originalIndex})" title="Delete">🗑️</button>
+                        </div>
+                    </div>
+                `;
             }).join('');
 
             if (!showAll && indexed.length > 15) {
-                container.innerHTML += `<div class="show-more" onclick="document.getElementById('show-all-btn').click()">Show ${indexed.length - 15} more...</div>`;
+                container.innerHTML += `<div class="show-more" onclick="showAllEvents()">Show ${indexed.length - 15} more...</div>`;
             }
         }
 
-        async function checkGitStatus() {
-            try {
-                const status = await api('/git/status');
-                const dot = document.getElementById('git-dot');
-                const text = document.getElementById('git-status-text');
-                const pushBtn = document.getElementById('push-btn');
-
-                if (status.noRepo) {
-                    dot.className = 'git-dot';
-                    text.textContent = 'No git repo';
-                    pushBtn.disabled = true;
-                } else if (status.hasChanges) {
-                    dot.className = 'git-dot changed';
-                    const label = status.isNewRepo ? 'New repo — ready to commit' : 'Unsaved changes';
-                    const remoteHint = !status.hasRemote ? ' (no remote)' : '';
-                    text.textContent = label + remoteHint;
-                    pushBtn.disabled = false;
-                    pushBtn.innerHTML = status.hasRemote
-                        ? '<span class="push-icon">🚀</span> Commit & Push to GitHub'
-                        : '<span class="push-icon">💾</span> Commit Locally';
-                } else {
-                    dot.className = 'git-dot clean';
-                    text.textContent = status.hasRemote ? 'Up to date' : 'Committed (no remote)';
-                    pushBtn.disabled = true;
-                }
-            } catch {
-                document.getElementById('git-status-text').textContent = 'Git not available';
-            }
+        function showAllEvents() {
+            showAll = true;
+            renderEventsList();
         }
 
-        // --- Actions ---
         async function deletePerson(id) {
             const person = allData.people[id];
             if (!confirm(`Delete ${person.name} and all their events?`)) return;
-            const res = await api(`/person/${id}`, 'DELETE');
-            if (res.success) { toast(res.message); refresh(); }
-            else toast(res.error, 'error');
+
+            const { error } = await supabaseClient.from('people').delete().eq('id', id);
+            if (error) toast(error.message, 'error');
+            else { toast(`Deleted ${person.name}`); refresh(); }
         }
 
         async function deleteEvent(index) {
+            const event = allData.events[index];
             if (!confirm('Delete this event?')) return;
-            const res = await api(`/event/${index}`, 'DELETE');
-            if (res.success) { toast(res.message); refresh(); }
-            else toast(res.error, 'error');
+
+            const { error } = await supabaseClient.from('events').delete().eq('id', event.db_id);
+            if (error) toast(error.message, 'error');
+            else { toast('Deleted event'); refresh(); }
         }
 
         function editEvent(index) {
@@ -354,49 +368,54 @@
         // --- Form Handlers ---
         document.getElementById('add-person-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const res = await api('/person', 'POST', {
-                id: document.getElementById('person-id').value,
-                name: document.getElementById('person-name').value,
-                avatar: document.getElementById('person-avatar').value || '👤',
-            });
-            if (res.success) {
-                toast(res.message);
+            const id = document.getElementById('person-id').value.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const name = document.getElementById('person-name').value;
+            const avatar = document.getElementById('person-avatar').value || '👤';
+
+            const { error } = await supabaseClient.from('people').insert([{ id, name, avatar }]);
+            if (error) toast(error.message, 'error');
+            else {
+                toast(`Added ${name}`);
                 e.target.reset();
                 document.getElementById('person-avatar').value = '👤';
                 refresh();
-            } else toast(res.error, 'error');
+            }
         });
 
         document.getElementById('add-event-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const res = await api('/event', 'POST', {
-                id: document.getElementById('event-person').value,
-                points: document.getElementById('event-points').value,
-                reason: document.getElementById('event-reason').value,
-                date: document.getElementById('event-date').value || undefined,
-            });
-            if (res.success) {
-                toast(res.message);
+            const person_id = document.getElementById('event-person').value;
+            const points = parseInt(document.getElementById('event-points').value);
+            const reason = document.getElementById('event-reason').value;
+            const date = document.getElementById('event-date').value || new Date().toISOString().split('T')[0];
+
+            const { error } = await supabaseClient.from('events').insert([{ person_id, points, reason, date }]);
+            if (error) toast(error.message, 'error');
+            else {
+                toast('Event added!');
                 document.getElementById('event-points').value = '';
                 document.getElementById('event-reason').value = '';
                 refresh();
-            } else toast(res.error, 'error');
+            }
         });
 
         document.getElementById('edit-event-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const index = document.getElementById('edit-index').value;
-            const res = await api(`/event/${index}`, 'PUT', {
-                id: document.getElementById('edit-person').value,
-                points: document.getElementById('edit-points').value,
-                reason: document.getElementById('edit-reason').value,
-                date: document.getElementById('edit-date').value,
-            });
-            if (res.success) {
+            const event = allData.events[index];
+
+            const person_id = document.getElementById('edit-person').value;
+            const points = parseInt(document.getElementById('edit-points').value);
+            const reason = document.getElementById('edit-reason').value;
+            const date = document.getElementById('edit-date').value;
+
+            const { error } = await supabaseClient.from('events').update({ person_id, points, reason, date }).eq('id', event.db_id);
+            if (error) toast(error.message, 'error');
+            else {
                 toast('Event updated');
                 document.getElementById('edit-modal').classList.add('hidden');
                 refresh();
-            } else toast(res.error, 'error');
+            }
         });
 
         document.getElementById('edit-cancel').addEventListener('click', () => {
@@ -420,35 +439,10 @@
             renderEventsList();
         });
 
-        // Git push
-        document.getElementById('push-btn').addEventListener('click', async () => {
-            const btn = document.getElementById('push-btn');
-            const output = document.getElementById('push-output');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="push-icon spin">🚀</span> Pushing...';
-            output.textContent = '';
-
-            try {
-                const res = await api('/git/push', 'POST', {
-                    message: document.getElementById('commit-message').value,
-                });
-                if (res.success) {
-                    toast('Pushed to GitHub! 🚀');
-                    output.className = 'push-output success';
-                    output.textContent = res.message;
-                } else {
-                    toast(res.error, 'error');
-                    output.className = 'push-output error';
-                    output.textContent = res.error + '\n' + (res.details || '');
-                }
-            } catch (e) {
-                toast('Push failed: ' + e.message, 'error');
-                output.className = 'push-output error';
-                output.textContent = e.message;
-            }
-
-            btn.innerHTML = '<span class="push-icon">🚀</span> Push to GitHub';
-            checkGitStatus();
+        // Manual Refresh button
+        document.getElementById('push-btn').addEventListener('click', () => {
+            refresh();
+            toast('Data refreshed 🔄');
         });
 
         // Set today's date as default

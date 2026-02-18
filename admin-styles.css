@@ -54,9 +54,11 @@ body {
 
 .admin-header h1 {
     font-family: var(--font-display);
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: 2px;
+    color: var(--gold);
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
 }
 
 .admin-badge {
