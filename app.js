@@ -1,0 +1,315 @@
+/* ============================================
+   PRESTIGE POINTS — App Logic
+   ============================================ */
+
+(function () {
+    'use strict';
+
+    const DATA_URL = 'data/points.json';
+    const MEME_DISPLAY_TIME = 4000; // ms per meme slide
+    const RECENT_HOURS = 24;
+
+    // --- Tier System ---
+    function getTier(score) {
+        if (score >= 1000) return { name: 'Prestige Overlord', icon: '🏆', class: 'tier-overlord' };
+        if (score >= 500) return { name: 'Main Character', icon: '⭐', class: 'tier-main' };
+        if (score >= 0) return { name: 'NPC', icon: '🤖', class: 'tier-npc' };
+        return { name: 'Literally Cooked', icon: '💀', class: 'tier-cooked' };
+    }
+
+    // --- Data Loading ---
+    async function loadData() {
+        try {
+            const resp = await fetch(DATA_URL + '?t=' + Date.now());
+            return await resp.json();
+        } catch (e) {
+            console.error('Failed to load data:', e);
+            return { people: {}, events: [] };
+        }
+    }
+
+    // --- Compute Leaderboard ---
+    function computeLeaderboard(data) {
+        const totals = {};
+        for (const [id, person] of Object.entries(data.people)) {
+            totals[id] = { id, ...person, score: 0, recentChange: false };
+        }
+        const now = Date.now();
+        const recentThreshold = now - RECENT_HOURS * 60 * 60 * 1000;
+
+        for (const event of data.events) {
+            if (!totals[event.id]) continue;
+            totals[event.id].score += event.points;
+            const eventTime = new Date(event.date + 'T12:00:00').getTime();
+            if (eventTime >= recentThreshold) {
+                totals[event.id].recentChange = true;
+            }
+        }
+
+        return Object.values(totals).sort((a, b) => b.score - a.score);
+    }
+
+    // --- Render Hero Stats ---
+    function renderHeroStats(leaderboard, events) {
+        const container = document.getElementById('hero-stats');
+        const totalPeople = leaderboard.length;
+        const totalEvents = events.length;
+        const totalPoints = leaderboard.reduce((sum, p) => sum + Math.abs(p.score), 0);
+
+        container.innerHTML = `
+      <div class="hero-stat">
+        <div class="hero-stat-value">${totalPeople}</div>
+        <div class="hero-stat-label">Players</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">${totalEvents}</div>
+        <div class="hero-stat-label">Events</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">${totalPoints.toLocaleString()}</div>
+        <div class="hero-stat-label">Total Prestige</div>
+      </div>
+    `;
+    }
+
+    // --- Render Leaderboard ---
+    function renderLeaderboard(leaderboard) {
+        const container = document.getElementById('leaderboard');
+        container.innerHTML = '';
+
+        leaderboard.forEach((person, index) => {
+            const rank = index + 1;
+            const tier = getTier(person.score);
+            const sign = person.score >= 0 ? '+' : '';
+            const scoreClass = person.score >= 0 ? 'positive' : 'negative';
+
+            let rankClass = '';
+            if (rank === 1) rankClass = 'rank-1';
+            else if (rank === 2) rankClass = 'rank-2';
+            else if (rank === 3) rankClass = 'rank-3';
+            if (person.score < 0) rankClass = 'rank-negative';
+
+            const recentClass = person.recentChange ? 'recent' : '';
+
+            const card = document.createElement('div');
+            card.className = `lb-card ${rankClass} ${recentClass}`;
+            card.style.animationDelay = `${0.3 + index * 0.08}s`;
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            card.innerHTML = `
+        <div class="lb-rank">#${rank}</div>
+        <div class="lb-avatar">${person.avatar}</div>
+        <div class="lb-info">
+          <div class="lb-name">${person.name}</div>
+          <div class="lb-tier">${tier.icon} ${tier.name}</div>
+        </div>
+        <div>
+          <div class="lb-score ${scoreClass}">${sign}${person.score.toLocaleString()}</div>
+          <div class="lb-score-label">prestige</div>
+        </div>
+      `;
+
+            // Animate entrance
+            setTimeout(() => {
+                card.style.transition = 'all 0.5s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, (0.3 + index * 0.08) * 1000);
+
+            container.appendChild(card);
+        });
+    }
+
+    // --- Render History Table ---
+    function renderHistory(data) {
+        const tbody = document.getElementById('history-body');
+        tbody.innerHTML = '';
+
+        const now = Date.now();
+        const recentThreshold = now - RECENT_HOURS * 60 * 60 * 1000;
+
+        // Sort events by date descending
+        const sorted = [...data.events].sort((a, b) => {
+            const dateCompare = b.date.localeCompare(a.date);
+            if (dateCompare !== 0) return dateCompare;
+            return data.events.indexOf(b) - data.events.indexOf(a);
+        });
+
+        sorted.forEach((event) => {
+            const person = data.people[event.id] || { name: event.id, avatar: '👤' };
+            const sign = event.points >= 0 ? '+' : '';
+            const pointsClass = event.points >= 0 ? 'positive' : 'negative';
+            const eventTime = new Date(event.date + 'T12:00:00').getTime();
+            const isRecent = eventTime >= recentThreshold;
+
+            const tr = document.createElement('tr');
+            if (isRecent) tr.classList.add('recent-event');
+            tr.innerHTML = `
+        <td class="date-cell">${formatDate(event.date)}</td>
+        <td><div class="person-cell">${person.avatar} ${person.name}</div></td>
+        <td class="points-cell ${pointsClass}">${sign}${event.points.toLocaleString()}</td>
+        <td class="reason-cell">${escapeHtml(event.reason)}</td>
+      `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function formatDate(dateStr) {
+        const d = new Date(dateStr + 'T12:00:00');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // --- Meme Overlay ---
+    function getRecentEvents(data) {
+        const now = Date.now();
+        const recentThreshold = now - RECENT_HOURS * 60 * 60 * 1000;
+
+        return data.events.filter((event) => {
+            const eventTime = new Date(event.date + 'T12:00:00').getTime();
+            return eventTime >= recentThreshold;
+        }).sort((a, b) => Math.abs(b.points) - Math.abs(a.points));
+    }
+
+    function showMemeOverlay(data) {
+        const recentEvents = getRecentEvents(data);
+        if (recentEvents.length === 0) return;
+
+        const overlay = document.getElementById('meme-overlay');
+        let currentIndex = 0;
+
+        function showNext() {
+            if (currentIndex >= recentEvents.length) {
+                // Done — hide overlay
+                overlay.classList.remove('active');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    overlay.classList.remove('gain', 'loss');
+                }, 300);
+                return;
+            }
+
+            const event = recentEvents[currentIndex];
+            const person = data.people[event.id] || { name: event.id, avatar: '👤' };
+            const isGain = event.points >= 0;
+
+            // Update overlay content
+            const sign = isGain ? '+' : '';
+            document.getElementById('meme-icon').textContent = isGain ? '👑' : '💀';
+            document.getElementById('meme-score').textContent = `${sign}${event.points.toLocaleString()}`;
+            document.getElementById('meme-reason').textContent = `"${event.reason}"`;
+            document.getElementById('meme-person').textContent = `— ${person.name} ${person.avatar}`;
+
+            overlay.classList.remove('hidden', 'gain', 'loss');
+            overlay.classList.add(isGain ? 'gain' : 'loss');
+
+            // Trigger animation
+            overlay.classList.remove('active');
+            void overlay.offsetWidth; // force reflow
+            overlay.classList.add('active');
+
+            // Progress bar
+            const bar = document.getElementById('meme-bar');
+            bar.style.transition = 'none';
+            bar.style.width = '0%';
+            void bar.offsetWidth;
+            bar.style.transition = `width ${MEME_DISPLAY_TIME}ms linear`;
+            bar.style.width = '100%';
+
+            currentIndex++;
+            setTimeout(showNext, MEME_DISPLAY_TIME);
+        }
+
+        // Click to skip
+        overlay.addEventListener('click', () => {
+            currentIndex = recentEvents.length;
+            overlay.classList.remove('active');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('gain', 'loss');
+            }, 300);
+        });
+
+        showNext();
+    }
+
+    // --- Particle Background ---
+    function initParticles() {
+        const canvas = document.getElementById('particles');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        const count = 50;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function createParticle() {
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2 + 0.5,
+                speedX: (Math.random() - 0.5) * 0.3,
+                speedY: (Math.random() - 0.5) * 0.3,
+                opacity: Math.random() * 0.3 + 0.05,
+                color: Math.random() > 0.7 ? '#ffd700' : '#ffffff',
+            };
+        }
+
+        function init() {
+            resize();
+            particles = [];
+            for (let i = 0; i < count; i++) {
+                particles.push(createParticle());
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (const p of particles) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.opacity;
+                ctx.fill();
+
+                p.x += p.speedX;
+                p.y += p.speedY;
+
+                if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+            }
+            ctx.globalAlpha = 1;
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', resize);
+        init();
+        draw();
+    }
+
+    // --- Main ---
+    async function main() {
+        initParticles();
+
+        const data = await loadData();
+        const leaderboard = computeLeaderboard(data);
+
+        renderHeroStats(leaderboard, data.events);
+        renderLeaderboard(leaderboard);
+        renderHistory(data);
+
+        // Show meme overlay for recent events after a brief delay
+        setTimeout(() => showMemeOverlay(data), 1200);
+    }
+
+    // Go!
+    document.addEventListener('DOMContentLoaded', main);
+})();

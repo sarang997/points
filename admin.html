@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prestige Points — Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="admin-styles.css">
+</head>
+
+<body>
+
+    <!-- Toast notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <h1>⚙️ Admin Panel</h1>
+            <span class="admin-badge">PRESTIGE POINTS</span>
+        </div>
+        <div class="admin-header-right">
+            <div class="git-status" id="git-status">
+                <span class="git-dot" id="git-dot"></span>
+                <span id="git-status-text">Checking...</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <!-- Left Column: Forms -->
+        <div class="admin-col">
+
+            <!-- Add Person -->
+            <section class="admin-card">
+                <h2>👤 Add Person</h2>
+                <form id="add-person-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="person-id">ID</label>
+                            <input type="text" id="person-id" placeholder="e.g. alice" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="person-name">Name</label>
+                            <input type="text" id="person-name" placeholder="e.g. Alice" required>
+                        </div>
+                        <div class="form-group form-group-small">
+                            <label for="person-avatar">Emoji</label>
+                            <input type="text" id="person-avatar" placeholder="🐱" value="👤">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">+ Add Person</button>
+                </form>
+            </section>
+
+            <!-- Add Event -->
+            <section class="admin-card">
+                <h2>📝 Add Event</h2>
+                <form id="add-event-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="event-person">Person</label>
+                            <select id="event-person" required>
+                                <option value="">Select person...</option>
+                            </select>
+                        </div>
+                        <div class="form-group form-group-small">
+                            <label for="event-points">Points</label>
+                            <input type="number" id="event-points" placeholder="500" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="event-reason">Reason</label>
+                            <input type="text" id="event-reason" placeholder="e.g. Aced the exam" required>
+                        </div>
+                        <div class="form-group form-group-small">
+                            <label for="event-date">Date</label>
+                            <input type="date" id="event-date">
+                        </div>
+                    </div>
+                    <div class="quick-points">
+                        <button type="button" class="qp-btn qp-pos" data-points="100">+100</button>
+                        <button type="button" class="qp-btn qp-pos" data-points="250">+250</button>
+                        <button type="button" class="qp-btn qp-pos" data-points="500">+500</button>
+                        <button type="button" class="qp-btn qp-pos" data-points="1000">+1000</button>
+                        <button type="button" class="qp-btn qp-neg" data-points="-100">-100</button>
+                        <button type="button" class="qp-btn qp-neg" data-points="-250">-250</button>
+                        <button type="button" class="qp-btn qp-neg" data-points="-500">-500</button>
+                        <button type="button" class="qp-btn qp-neg" data-points="-1000">-1000</button>
+                    </div>
+                    <button type="submit" class="btn btn-primary">⚡ Add Event</button>
+                </form>
+            </section>
+        </div>
+
+        <!-- Right Column: Review & Push -->
+        <div class="admin-col">
+
+            <!-- Current People -->
+            <section class="admin-card">
+                <h2>👥 People <span class="count" id="people-count">0</span></h2>
+                <div id="people-list" class="people-list"></div>
+            </section>
+
+            <!-- Recent Events / Review -->
+            <section class="admin-card">
+                <h2>📜 Events <span class="count" id="events-count">0</span></h2>
+                <div class="events-toolbar">
+                    <button class="btn btn-sm btn-ghost" id="show-all-btn">Show All</button>
+                    <button class="btn btn-sm btn-ghost" id="show-recent-btn">Recent Only</button>
+                </div>
+                <div id="events-list" class="events-list"></div>
+            </section>
+
+            <!-- Git Push -->
+            <section class="admin-card push-card">
+                <h2>🚀 Push to GitHub</h2>
+                <div class="form-group">
+                    <label for="commit-message">Commit Message</label>
+                    <input type="text" id="commit-message" placeholder="Update prestige points"
+                        value="Update prestige points">
+                </div>
+                <button class="btn btn-push" id="push-btn" disabled>
+                    <span class="push-icon">🚀</span> Push to GitHub
+                </button>
+                <div class="push-output" id="push-output"></div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay hidden" id="edit-modal">
+        <div class="modal">
+            <h3>✏️ Edit Event</h3>
+            <form id="edit-event-form">
+                <input type="hidden" id="edit-index">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-person">Person</label>
+                        <select id="edit-person" required></select>
+                    </div>
+                    <div class="form-group form-group-small">
+                        <label for="edit-points">Points</label>
+                        <input type="number" id="edit-points" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-reason">Reason</label>
+                        <input type="text" id="edit-reason" required>
+                    </div>
+                    <div class="form-group form-group-small">
+                        <label for="edit-date">Date</label>
+                        <input type="date" id="edit-date" required>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" id="edit-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:3457/api';
+        let allData = { people: {}, events: [] };
+        let showAll = false;
+
+        // --- Toast ---
+        function toast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.textContent = message;
+            container.appendChild(t);
+            requestAnimationFrame(() => t.classList.add('show'));
+            setTimeout(() => {
+                t.classList.remove('show');
+                setTimeout(() => t.remove(), 300);
+            }, 3000);
+        }
+
+        // --- API Calls ---
+        async function api(path, method = 'GET', body = null) {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(API + path, opts);
+            return res.json();
+        }
+
+        // --- Load & Render ---
+        async function refresh() {
+            allData = await api('/data');
+            renderPeopleSelect();
+            renderPeopleList();
+            renderEventsList();
+            checkGitStatus();
+        }
+
+        function renderPeopleSelect() {
+            const selects = [document.getElementById('event-person'), document.getElementById('edit-person')];
+            selects.forEach(select => {
+                const val = select.value;
+                select.innerHTML = '<option value="">Select person...</option>';
+                for (const [id, person] of Object.entries(allData.people)) {
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = `${person.avatar} ${person.name}`;
+                    select.appendChild(opt);
+                }
+                select.value = val;
+            });
+        }
+
+        function renderPeopleList() {
+            const container = document.getElementById('people-list');
+            const entries = Object.entries(allData.people);
+            document.getElementById('people-count').textContent = entries.length;
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div class="empty-state">No people added yet</div>';
+                return;
+            }
+
+            // Compute totals
+            const totals = {};
+            entries.forEach(([id]) => (totals[id] = 0));
+            allData.events.forEach((e) => { if (totals[e.id] !== undefined) totals[e.id] += e.points; });
+
+            container.innerHTML = entries.map(([id, p]) => {
+                const score = totals[id] || 0;
+                const sign = score >= 0 ? '+' : '';
+                const cls = score >= 0 ? 'positive' : 'negative';
+                return `
+          <div class="person-row">
+            <span class="person-avatar">${p.avatar}</span>
+            <span class="person-name">${p.name}</span>
+            <span class="person-id">@${id}</span>
+            <span class="person-score ${cls}">${sign}${score}</span>
+            <button class="btn-icon btn-delete" onclick="deletePerson('${id}')" title="Delete person">🗑️</button>
+          </div>
+        `;
+            }).join('');
+        }
+
+        function renderEventsList() {
+            const container = document.getElementById('events-list');
+            document.getElementById('events-count').textContent = allData.events.length;
+
+            if (allData.events.length === 0) {
+                container.innerHTML = '<div class="empty-state">No events yet</div>';
+                return;
+            }
+
+            // Sort by date descending
+            const indexed = allData.events.map((e, i) => ({ ...e, originalIndex: i }));
+            indexed.sort((a, b) => b.date.localeCompare(a.date) || b.originalIndex - a.originalIndex);
+
+            const display = showAll ? indexed : indexed.slice(0, 15);
+
+            container.innerHTML = display.map((event) => {
+                const person = allData.people[event.id] || { name: event.id, avatar: '👤' };
+                const sign = event.points >= 0 ? '+' : '';
+                const cls = event.points >= 0 ? 'positive' : 'negative';
+                return `
+          <div class="event-row">
+            <div class="event-main">
+              <span class="event-avatar">${person.avatar}</span>
+              <div class="event-info">
+                <div class="event-top">
+                  <span class="event-name">${person.name}</span>
+                  <span class="event-points ${cls}">${sign}${event.points}</span>
+                </div>
+                <div class="event-reason">${event.reason}</div>
+              </div>
+              <span class="event-date">${event.date}</span>
+            </div>
+            <div class="event-actions">
+              <button class="btn-icon" onclick="editEvent(${event.originalIndex})" title="Edit">✏️</button>
+              <button class="btn-icon btn-delete" onclick="deleteEvent(${event.originalIndex})" title="Delete">🗑️</button>
+            </div>
+          </div>
+        `;
+            }).join('');
+
+            if (!showAll && indexed.length > 15) {
+                container.innerHTML += `<div class="show-more" onclick="document.getElementById('show-all-btn').click()">Show ${indexed.length - 15} more...</div>`;
+            }
+        }
+
+        async function checkGitStatus() {
+            try {
+                const status = await api('/git/status');
+                const dot = document.getElementById('git-dot');
+                const text = document.getElementById('git-status-text');
+                const pushBtn = document.getElementById('push-btn');
+
+                if (status.hasChanges) {
+                    dot.className = 'git-dot changed';
+                    text.textContent = 'Unsaved changes';
+                    pushBtn.disabled = false;
+                } else {
+                    dot.className = 'git-dot clean';
+                    text.textContent = 'Up to date';
+                    pushBtn.disabled = true;
+                }
+            } catch {
+                document.getElementById('git-status-text').textContent = 'Git not available';
+            }
+        }
+
+        // --- Actions ---
+        async function deletePerson(id) {
+            const person = allData.people[id];
+            if (!confirm(`Delete ${person.name} and all their events?`)) return;
+            const res = await api(`/person/${id}`, 'DELETE');
+            if (res.success) { toast(res.message); refresh(); }
+            else toast(res.error, 'error');
+        }
+
+        async function deleteEvent(index) {
+            if (!confirm('Delete this event?')) return;
+            const res = await api(`/event/${index}`, 'DELETE');
+            if (res.success) { toast(res.message); refresh(); }
+            else toast(res.error, 'error');
+        }
+
+        function editEvent(index) {
+            const event = allData.events[index];
+            document.getElementById('edit-index').value = index;
+            document.getElementById('edit-person').value = event.id;
+            document.getElementById('edit-points').value = event.points;
+            document.getElementById('edit-reason').value = event.reason;
+            document.getElementById('edit-date').value = event.date;
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        // --- Form Handlers ---
+        document.getElementById('add-person-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await api('/person', 'POST', {
+                id: document.getElementById('person-id').value,
+                name: document.getElementById('person-name').value,
+                avatar: document.getElementById('person-avatar').value || '👤',
+            });
+            if (res.success) {
+                toast(res.message);
+                e.target.reset();
+                document.getElementById('person-avatar').value = '👤';
+                refresh();
+            } else toast(res.error, 'error');
+        });
+
+        document.getElementById('add-event-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await api('/event', 'POST', {
+                id: document.getElementById('event-person').value,
+                points: document.getElementById('event-points').value,
+                reason: document.getElementById('event-reason').value,
+                date: document.getElementById('event-date').value || undefined,
+            });
+            if (res.success) {
+                toast(res.message);
+                document.getElementById('event-points').value = '';
+                document.getElementById('event-reason').value = '';
+                refresh();
+            } else toast(res.error, 'error');
+        });
+
+        document.getElementById('edit-event-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const index = document.getElementById('edit-index').value;
+            const res = await api(`/event/${index}`, 'PUT', {
+                id: document.getElementById('edit-person').value,
+                points: document.getElementById('edit-points').value,
+                reason: document.getElementById('edit-reason').value,
+                date: document.getElementById('edit-date').value,
+            });
+            if (res.success) {
+                toast('Event updated');
+                document.getElementById('edit-modal').classList.add('hidden');
+                refresh();
+            } else toast(res.error, 'error');
+        });
+
+        document.getElementById('edit-cancel').addEventListener('click', () => {
+            document.getElementById('edit-modal').classList.add('hidden');
+        });
+
+        // Quick point buttons
+        document.querySelectorAll('.qp-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                document.getElementById('event-points').value = btn.dataset.points;
+            });
+        });
+
+        // Show all / recent
+        document.getElementById('show-all-btn').addEventListener('click', () => {
+            showAll = true;
+            renderEventsList();
+        });
+        document.getElementById('show-recent-btn').addEventListener('click', () => {
+            showAll = false;
+            renderEventsList();
+        });
+
+        // Git push
+        document.getElementById('push-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('push-btn');
+            const output = document.getElementById('push-output');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="push-icon spin">🚀</span> Pushing...';
+            output.textContent = '';
+
+            try {
+                const res = await api('/git/push', 'POST', {
+                    message: document.getElementById('commit-message').value,
+                });
+                if (res.success) {
+                    toast('Pushed to GitHub! 🚀');
+                    output.className = 'push-output success';
+                    output.textContent = res.message;
+                } else {
+                    toast(res.error, 'error');
+                    output.className = 'push-output error';
+                    output.textContent = res.error + '\n' + (res.details || '');
+                }
+            } catch (e) {
+                toast('Push failed: ' + e.message, 'error');
+                output.className = 'push-output error';
+                output.textContent = e.message;
+            }
+
+            btn.innerHTML = '<span class="push-icon">🚀</span> Push to GitHub';
+            checkGitStatus();
+        });
+
+        // Set today's date as default
+        document.getElementById('event-date').value = new Date().toISOString().split('T')[0];
+
+        // Init
+        refresh();
+    </script>
+</body>
+
+</html>

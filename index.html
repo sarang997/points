@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prestige Points — The Ultimate Social Tracker</title>
+  <meta name="description" content="Track Prestige Points across your crew. Who's the Main Character? Who's Literally Cooked? Find out.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Meme Overlay -->
+  <div id="meme-overlay" class="meme-overlay hidden">
+    <div class="meme-content">
+      <div class="meme-stars">✦ ✦ ✦</div>
+      <div class="meme-icon" id="meme-icon">👑</div>
+      <div class="meme-score" id="meme-score">+1000</div>
+      <div class="meme-label">PRESTIGE</div>
+      <div class="meme-reason" id="meme-reason">Did something legendary</div>
+      <div class="meme-person" id="meme-person">Someone</div>
+      <div class="meme-bar-container">
+        <div class="meme-bar" id="meme-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Particle canvas -->
+  <canvas id="particles"></canvas>
+
+  <!-- Header -->
+  <header class="hero">
+    <div class="hero-badge">SOCIAL CREDIT SYSTEM v2.0</div>
+    <h1 class="glitch" data-text="PRESTIGE POINTS">PRESTIGE POINTS</h1>
+    <p class="hero-sub">Your actions have consequences. Your score tells the truth.</p>
+    <div class="hero-stats" id="hero-stats"></div>
+  </header>
+
+  <!-- Leaderboard -->
+  <section class="section" id="leaderboard-section">
+    <div class="section-header">
+      <h2>🏅 Leaderboard</h2>
+      <span class="section-badge">RANKED</span>
+    </div>
+    <div class="leaderboard" id="leaderboard"></div>
+  </section>
+
+  <!-- History -->
+  <section class="section" id="history-section">
+    <div class="section-header">
+      <h2>📜 Event History</h2>
+      <span class="section-badge">ALL TIME</span>
+    </div>
+    <div class="table-wrapper">
+      <table class="history-table" id="history-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Person</th>
+            <th>Points</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>PRESTIGE POINTS — Your reputation, quantified.</p>
+    <p class="footer-small">Powered by vibes and accountability</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
