@@ -1,4 +1,26 @@
 {
-  "people": {},
-  "events": []
+  "people": {
+    "sebastian": {
+      "name": "Sebastian ",
+      "avatar": "👤"
+    },
+    "sarang": {
+      "name": "Sarang",
+      "avatar": "👤"
+    }
+  },
+  "events": [
+    {
+      "id": "sebastian",
+      "date": "2026-02-18",
+      "points": 100,
+      "reason": "Points for enrolling"
+    },
+    {
+      "id": "sarang",
+      "date": "2026-02-18",
+      "points": 100,
+      "reason": "Points for enrolling"
+    }
+  ]
 }
