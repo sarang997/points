@@ -302,13 +302,22 @@
                 const text = document.getElementById('git-status-text');
                 const pushBtn = document.getElementById('push-btn');
 
-                if (status.hasChanges) {
+                if (status.noRepo) {
+                    dot.className = 'git-dot';
+                    text.textContent = 'No git repo';
+                    pushBtn.disabled = true;
+                } else if (status.hasChanges) {
                     dot.className = 'git-dot changed';
-                    text.textContent = 'Unsaved changes';
+                    const label = status.isNewRepo ? 'New repo — ready to commit' : 'Unsaved changes';
+                    const remoteHint = !status.hasRemote ? ' (no remote)' : '';
+                    text.textContent = label + remoteHint;
                     pushBtn.disabled = false;
+                    pushBtn.innerHTML = status.hasRemote
+                        ? '<span class="push-icon">🚀</span> Commit & Push to GitHub'
+                        : '<span class="push-icon">💾</span> Commit Locally';
                 } else {
                     dot.className = 'git-dot clean';
-                    text.textContent = 'Up to date';
+                    text.textContent = status.hasRemote ? 'Up to date' : 'Committed (no remote)';
                     pushBtn.disabled = true;
                 }
             } catch {

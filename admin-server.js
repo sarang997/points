@@ -174,9 +174,32 @@ const server = http.createServer(async (req, res) => {
 
     // --- API: Git status ---
     if (req.method === 'GET' && url.pathname === '/api/git/status') {
-        const status = runGit('git status --porcelain data/points.json');
+        // Check if git repo exists
+        const isRepo = runGit('git rev-parse --is-inside-work-tree');
+        if (!isRepo.success) {
+            jsonResponse(res, 200, { hasChanges: false, noRepo: true, output: 'Not a git repository', success: false });
+            return;
+        }
+
+        // Check for any changes (staged, unstaged, untracked) to data/
+        const status = runGit('git status --porcelain data/');
+        // Also check if there are any commits at all
+        const hasCommits = runGit('git log --oneline -1');
+        // Check if remote exists
+        const remote = runGit('git remote -v');
+        const hasRemote = remote.success && remote.output.length > 0;
+
         const hasChanges = status.success && status.output.length > 0;
-        jsonResponse(res, 200, { hasChanges, output: status.output, success: status.success });
+        // Also consider it "has changes" if there are no commits yet (fresh repo)
+        const isNewRepo = !hasCommits.success;
+
+        jsonResponse(res, 200, {
+            hasChanges: hasChanges || isNewRepo,
+            isNewRepo,
+            hasRemote,
+            output: status.output || (isNewRepo ? 'New repo — initial commit needed' : ''),
+            success: true,
+        });
         return;
     }
 
@@ -193,10 +216,34 @@ const server = http.createServer(async (req, res) => {
             return jsonResponse(res, 500, { error: 'git commit failed', details: commit.output });
         }
 
-        const push = runGit('git push');
-        if (!push.success) return jsonResponse(res, 500, { error: 'git push failed', details: push.output });
+        // Check if remote exists before pushing
+        const remote = runGit('git remote -v');
+        if (!remote.success || remote.output.length === 0) {
+            // Commit succeeded but no remote — that's still useful
+            jsonResponse(res, 200, {
+                success: true,
+                committed: true,
+                pushed: false,
+                message: 'Committed locally! ✅ No remote configured yet — add one with: git remote add origin <url>',
+                details: commit.output,
+            });
+            return;
+        }
 
-        jsonResponse(res, 200, { success: true, message: 'Pushed to GitHub! 🚀', details: push.output });
+        const push = runGit('git push');
+        if (!push.success) {
+            // Check if it's a "no upstream branch" error
+            if (push.output.includes('no upstream branch') || push.output.includes('set-upstream')) {
+                const pushUp = runGit('git push -u origin main') || runGit('git push -u origin master');
+                if (pushUp.success) {
+                    jsonResponse(res, 200, { success: true, committed: true, pushed: true, message: 'Pushed to GitHub! 🚀', details: pushUp.output });
+                    return;
+                }
+            }
+            return jsonResponse(res, 500, { error: 'git push failed', details: push.output });
+        }
+
+        jsonResponse(res, 200, { success: true, committed: true, pushed: true, message: 'Pushed to GitHub! 🚀', details: push.output });
         return;
     }
 
