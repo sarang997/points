@@ -18,6 +18,33 @@
     const MEME_DISPLAY_TIME = 3000; // ms per notification card
     const RECENT_HOURS = 24;
 
+    // --- Fingerprinting (Vouch System) ---
+    async function getBrowserFingerprint() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = "top";
+        ctx.font = "14px 'Arial'";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = "#f60";
+        ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = "#069";
+        ctx.fillText("PrestigePoints-FP", 2, 15);
+        ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+        ctx.fillText("PrestigePoints-FP", 4, 17);
+        const b64 = canvas.toDataURL().replace("data:image/png;base64,", "");
+        const bin = atob(b64);
+        const crc = (str) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return hash;
+        };
+        const id = `${navigator.userAgent.length}-${screen.width}x${screen.height}-${crc(bin)}`;
+        return id;
+    }
+
     // --- Tier System ---
     function getTier(score) {
         if (score >= 1000) return { name: 'Prestige Overlord', icon: '🏆', class: 'tier-overlord' };
@@ -30,36 +57,43 @@
     async function loadData() {
         if (!supabaseClient) {
             console.error('Supabase client not initialized. Check your URL/Key.');
-            return { people: {}, events: [] };
+            return { people: {}, events: [], pending: [], finger: null };
         }
 
         try {
+            const finger = await getBrowserFingerprint();
+
             // Fetch people and events in parallel
             const [peopleRes, eventsRes] = await Promise.all([
                 supabaseClient.from('people').select('*'),
-                supabaseClient.from('events').select('*')
+                supabaseClient.from('events').select('*').order('created_at', { ascending: false })
             ]);
 
             if (peopleRes.error) throw peopleRes.error;
             if (eventsRes.error) throw eventsRes.error;
 
-            // Transform Supabase format back to our app format
             const people = {};
             peopleRes.data.forEach(p => {
                 people[p.id] = { name: p.name, avatar: p.avatar };
             });
 
-            const events = eventsRes.data.map(e => ({
+            const allEvents = eventsRes.data;
+
+            // Filter events: live ones go to leaderboard, pending ones to the vouch queue
+            const live = allEvents.filter(e => e.status === 'live' || !e.status).map(e => ({
                 id: e.person_id,
                 date: e.date,
                 points: e.points,
-                reason: e.reason
+                reason: e.reason,
+                db_id: e.id
             }));
 
-            return { people, events };
+            const pending = allEvents.filter(e => e.status === 'pending');
+
+            return { people, events: live, pending, finger };
         } catch (e) {
             console.error('Failed to load data from Supabase:', e);
-            return { people: {}, events: [] };
+            return { people: {}, events: [], pending: [], finger: null };
         }
     }
 
@@ -180,13 +214,84 @@
             const tr = document.createElement('tr');
             if (isRecent) tr.classList.add('recent-event');
             tr.innerHTML = `
-        <td class="date-cell">${formatDate(event.date)}</td>
-        <td><div class="person-cell">${person.avatar} ${person.name}</div></td>
-        <td class="points-cell ${pointsClass}">${sign}${event.points.toLocaleString()}</td>
-        <td class="reason-cell">${escapeHtml(event.reason)}</td>
-      `;
+                <td class="date-cell">${formatDate(event.date)}</td>
+                <td><div class="person-cell">${person.avatar} ${person.name}</div></td>
+                <td class="points-cell ${pointsClass}">${sign}${event.points.toLocaleString()}</td>
+                <td class="reason-cell">${escapeHtml(event.reason)}</td>
+            `;
             tbody.appendChild(tr);
         });
+    }
+
+    // --- Vouch System UI ---
+    function renderPending(pending, data) {
+        const container = document.getElementById('pending-container');
+        const section = document.getElementById('pending-section');
+        if (!container || !section) return;
+
+        if (pending.length === 0) {
+            section.classList.add('hidden');
+            return;
+        }
+
+        section.classList.remove('hidden');
+        container.innerHTML = '';
+
+        pending.forEach(event => {
+            const person = data.people[event.person_id] || { name: 'Unknown', avatar: '👤' };
+            const isGain = event.points >= 0;
+            const approvals = Array.isArray(event.approvals) ? event.approvals : [];
+            const denials = Array.isArray(event.denials) ? event.denials : [];
+
+            const hasVoted = approvals.includes(data.finger) || denials.includes(data.finger);
+            const isCreator = event.fingerprint === data.finger;
+
+            const card = document.createElement('div');
+            card.className = 'pending-card';
+            card.innerHTML = `
+                <div class="vouch-count">${approvals.length} / 2 VOUCHES</div>
+                <div class="pending-info">
+                    <div class="pending-header">
+                        <span class="pending-person">${person.name} ${person.avatar}</span>
+                        <span class="pending-points ${isGain ? 'positive' : 'negative'}">
+                            ${isGain ? '+' : ''}${event.points}
+                        </span>
+                    </div>
+                    <span class="pending-reason">"${event.reason}"</span>
+                    <span class="pending-vouchers">
+                        ${approvals.length > 0 ? `Vouched by ${approvals.length} device(s)` : 'No vouches yet'}
+                    </span>
+                </div>
+                <div class="voting-actions">
+                    <button class="btn-vouch approve" onclick="vouchEvent(${event.id}, 'approve')" 
+                        ${hasVoted || isCreator ? 'disabled' : ''}>
+                        ${isCreator ? 'Your Proposal' : (hasVoted ? 'Vouched ✅' : 'Vouch ✅')}
+                    </button>
+                    <button class="btn-vouch deny" onclick="vouchEvent(${event.id}, 'deny')"
+                        ${hasVoted || isCreator ? 'disabled' : ''}>
+                        Deny ❌
+                    </button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function updateProposalForm(people) {
+        const select = document.getElementById('proposal-person');
+        if (!select) return;
+
+        const current = select.value;
+        select.innerHTML = '<option value="" disabled selected>Select Person...</option>';
+
+        Object.keys(people).sort().forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = `${people[id].name} ${people[id].avatar}`;
+            select.appendChild(opt);
+        });
+
+        if (people[current]) select.value = current;
     }
 
     function formatDate(dateStr) {
@@ -357,17 +462,93 @@
     }
 
     // --- Main ---
+    // --- Global Actions ---
+    window.vouchEvent = async function (eventId, type) {
+        // Fetch current event state
+        const { data: event, error: fetchErr } = await supabaseClient
+            .from('events')
+            .select('*')
+            .eq('id', eventId)
+            .single();
+
+        if (fetchErr || !event) return;
+
+        const finger = await getBrowserFingerprint();
+        let approvals = Array.isArray(event.approvals) ? event.approvals : [];
+        let denials = Array.isArray(event.denials) ? event.denials : [];
+
+        if (type === 'approve') {
+            if (!approvals.includes(finger)) approvals.push(finger);
+        } else {
+            if (!denials.includes(finger)) denials.push(finger);
+        }
+
+        let newStatus = 'pending';
+        if (approvals.length >= 2) newStatus = 'live';
+        if (denials.length >= 2) newStatus = 'denied';
+
+        const { error: updateErr } = await supabaseClient
+            .from('events')
+            .update({ approvals, denials, status: newStatus })
+            .eq('id', eventId);
+
+        if (!updateErr) main(); // Refresh UI
+    };
+
+    function setupProposalForm() {
+        const form = document.getElementById('proposal-form');
+        if (!form) return;
+
+        // Remove old listener if it exists by cloning
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+
+        newForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const finger = await getBrowserFingerprint();
+
+            const personId = document.getElementById('proposal-person').value;
+            const points = parseInt(document.getElementById('proposal-points').value);
+            const reason = document.getElementById('proposal-reason').value;
+
+            const { error } = await supabaseClient
+                .from('events')
+                .insert([{
+                    person_id: personId,
+                    points: points,
+                    reason: reason,
+                    status: 'pending',
+                    fingerprint: finger,
+                    approvals: [],
+                    denials: []
+                }]);
+
+            if (error) {
+                alert("Proposal failed. Did you run the SQL migration?");
+            } else {
+                newForm.reset();
+                main(); // Refresh
+            }
+        });
+    }
+
+    // --- Main ---
     async function main() {
         initParticles();
 
         const data = await loadData();
+        if (!data.people) return;
+
         const leaderboard = computeLeaderboard(data);
 
         renderHeroStats(leaderboard, data.events);
         renderLeaderboard(leaderboard);
         renderHistory(data);
+        renderPending(data.pending || [], data);
+        updateProposalForm(data.people);
+        setupProposalForm();
 
-        // Show meme overlay for recent events after a brief delay
+        // Show meme overlay for recent live events
         setTimeout(() => showMemeOverlay(data), 1200);
     }
 

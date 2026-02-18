@@ -46,6 +46,36 @@
     <div class="hero-stats" id="hero-stats"></div>
   </header>
 
+  <!-- Suggest Event Form -->
+  <section class="section" id="suggest-section">
+    <div class="section-badge" style="margin-bottom: 12px; display: inline-block;">P2P GOVERNANCE</div>
+    <div class="proposal-card">
+      <div class="proposal-header">
+        <h2>🗳️ Propose Prestige</h2>
+        <p>Anyone can suggest an event. It needs 2 community vouches to go live.</p>
+      </div>
+      <form id="proposal-form" class="proposal-form">
+        <select id="proposal-person" required>
+          <option value="" disabled selected>Select Person...</option>
+        </select>
+        <input type="number" id="proposal-points" placeholder="Points (e.g. 50 or -20)" required>
+        <input type="text" id="proposal-reason" placeholder="Reason for change..." required>
+        <button type="submit" class="btn-primary">Submit for Approval</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Pending Approvals -->
+  <section class="section hidden" id="pending-section">
+    <div class="section-header">
+      <h2>⏳ Voting Queue</h2>
+      <span class="section-badge">PENDING VOUCHES</span>
+    </div>
+    <div id="pending-container" class="pending-grid">
+      <!-- Pending cards will be injected here -->
+    </div>
+  </section>
+
   <!-- Leaderboard -->
   <section class="section" id="leaderboard-section">
     <div class="section-header">
