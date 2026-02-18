@@ -41,6 +41,12 @@
       "date": "2026-02-18",
       "points": 100,
       "reason": "Points for enrolling"
+    },
+    {
+      "id": "sebastian",
+      "date": "2026-02-18",
+      "points": -250,
+      "reason": "lost pool game"
     }
   ]
 }
