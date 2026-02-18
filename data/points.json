@@ -7,6 +7,10 @@
     "sarang": {
       "name": "Sarang",
       "avatar": "👤"
+    },
+    "roy": {
+      "name": "Roy",
+      "avatar": "👤"
     }
   },
   "events": [
@@ -18,6 +22,12 @@
     },
     {
       "id": "sarang",
+      "date": "2026-02-18",
+      "points": 100,
+      "reason": "Points for enrolling"
+    },
+    {
+      "id": "roy",
       "date": "2026-02-18",
       "points": 100,
       "reason": "Points for enrolling"
