@@ -11,6 +11,10 @@
     "roy": {
       "name": "Roy",
       "avatar": "👤"
+    },
+    "rafael": {
+      "name": "Rafael ",
+      "avatar": "👤"
     }
   },
   "events": [
@@ -28,6 +32,12 @@
     },
     {
       "id": "roy",
+      "date": "2026-02-18",
+      "points": 100,
+      "reason": "Points for enrolling"
+    },
+    {
+      "id": "rafael",
       "date": "2026-02-18",
       "points": 100,
       "reason": "Points for enrolling"
