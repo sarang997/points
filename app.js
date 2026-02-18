@@ -216,21 +216,41 @@
         const recentEvents = getRecentEvents(data);
         if (recentEvents.length === 0) return;
 
+        // --- Session Storage Fix ---
+        // We track which events have been shown in this session 
+        // to avoid annoying the user on every refresh.
+        const shownKey = 'prestige_shown_events';
+        let shownEvents = [];
+        try {
+            shownEvents = JSON.parse(sessionStorage.getItem(shownKey) || '[]');
+        } catch (e) { shownEvents = []; }
+
+        // Filter out events already seen in this session
+        const newEvents = recentEvents.filter(e => !shownEvents.includes(e.db_id));
+
+        if (newEvents.length === 0) return; // Nothing new to show!
+
         const overlay = document.getElementById('meme-overlay');
         let currentIndex = 0;
 
         function showNext() {
-            if (currentIndex >= recentEvents.length) {
+            if (currentIndex >= newEvents.length) {
                 // Done — hide overlay
                 overlay.classList.remove('active');
                 setTimeout(() => {
                     overlay.classList.add('hidden');
                     overlay.classList.remove('gain', 'loss');
                 }, 300);
+
+                // Save these as shown
+                newEvents.forEach(e => {
+                    if (!shownEvents.includes(e.db_id)) shownEvents.push(e.db_id);
+                });
+                sessionStorage.setItem(shownKey, JSON.stringify(shownEvents));
                 return;
             }
 
-            const event = recentEvents[currentIndex];
+            const event = newEvents[currentIndex];
             const person = data.people[event.id] || { name: event.id, avatar: '👤' };
             const isGain = event.points >= 0;
 
@@ -263,7 +283,13 @@
 
         // Click to skip
         overlay.addEventListener('click', () => {
-            currentIndex = recentEvents.length;
+            // Mark all as shown so they don't reappear
+            newEvents.forEach(e => {
+                if (!shownEvents.includes(e.db_id)) shownEvents.push(e.db_id);
+            });
+            sessionStorage.setItem(shownKey, JSON.stringify(shownEvents));
+
+            currentIndex = newEvents.length;
             overlay.classList.remove('active');
             setTimeout(() => {
                 overlay.classList.add('hidden');
