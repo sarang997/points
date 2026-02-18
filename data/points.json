@@ -1,16 +1,4 @@
 {
-  "people": {
-    "sarang": {
-      "name": "sarang",
-      "avatar": "👤"
-    }
-  },
-  "events": [
-    {
-      "id": "sarang",
-      "date": "2026-02-18",
-      "points": 250,
-      "reason": "test"
-    }
-  ]
+  "people": {},
+  "events": []
 }
