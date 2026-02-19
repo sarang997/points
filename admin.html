@@ -70,9 +70,18 @@
                                 <option value="">Select person...</option>
                             </select>
                         </div>
-                        <div class="form-group form-group-small">
+                        <div class="form-group form-group-small" style="flex: 2;">
                             <label for="event-points">Points</label>
-                            <input type="number" id="event-points" placeholder="500" required>
+                            <div class="point-input-group">
+                                <input type="number" id="event-points" placeholder="50" required style="width: 100%;">
+                                <div class="toggle-group">
+                                    <input type="radio" name="point-type" id="pt-pos" value="1" checked hidden>
+                                    <label for="pt-pos" class="toggle-btn positive active">+</label>
+
+                                    <input type="radio" name="point-type" id="pt-neg" value="-1" hidden>
+                                    <label for="pt-neg" class="toggle-btn negative">-</label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="form-row">
@@ -390,13 +399,30 @@
             }
         });
 
+        // Toggle Logic
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const grp = btn.closest('.toggle-group');
+                grp.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Trigger the hidden radio
+                const forId = btn.getAttribute('for');
+                document.getElementById(forId).checked = true;
+            });
+        });
+
         document.getElementById('add-event-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const person_id = document.getElementById('event-person').value;
-            const points = parseInt(document.getElementById('event-points').value);
+            let points = parseInt(document.getElementById('event-points').value);
             const reason = document.getElementById('event-reason').value;
             const date = document.getElementById('event-date').value || new Date().toISOString().split('T')[0];
             const finger = await getBrowserFingerprint();
+
+            // Apply multiplier
+            const multiplier = parseInt(document.querySelector('input[name="point-type"]:checked').value);
+            points = points * multiplier;
 
             // All events added via admin are now 'pending' for the community vouch system
             const { error } = await supabaseClient.from('events').insert([{
@@ -415,6 +441,8 @@
                 toast('Event proposed! Awaiting community vouch.');
                 document.getElementById('event-points').value = '';
                 document.getElementById('event-reason').value = '';
+                // Reset toggle to positive
+                document.querySelector('.toggle-btn.positive').click();
                 refresh();
             }
         });
@@ -445,7 +473,14 @@
         // Quick point buttons
         document.querySelectorAll('.qp-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
-                document.getElementById('event-points').value = btn.dataset.points;
+                const val = parseInt(btn.dataset.points);
+                document.getElementById('event-points').value = Math.abs(val);
+
+                if (val >= 0) {
+                    document.querySelector('label[for="pt-pos"]').click();
+                } else {
+                    document.querySelector('label[for="pt-neg"]').click();
+                }
             });
         });
 

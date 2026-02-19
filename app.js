@@ -494,6 +494,67 @@
     };
 
 
+
+    // --- Realtime Updates ---
+    function setupRealtime() {
+        if (!supabaseClient) return;
+
+        const channel = supabaseClient
+            .channel('public:events')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
+                if (payload.eventType === 'INSERT') {
+                    // New event proposed
+                    const event = payload.new;
+                    if (event.status === 'pending') {
+                        lastLoadedData.pending.push(event);
+                        renderPending(lastLoadedData.pending, lastLoadedData);
+                    }
+                } else if (payload.eventType === 'UPDATE') {
+                    // Event vouched or status changed
+                    const updatedEvent = payload.new;
+                    const index = lastLoadedData.pending.findIndex(e => e.id === updatedEvent.id);
+
+                    if (index !== -1) {
+                        if (updatedEvent.status !== 'pending') {
+                            // Event approved/denied - remove from pending locally
+                            lastLoadedData.pending.splice(index, 1);
+
+                            // If live, show overlay for everyone!
+                            if (updatedEvent.status === 'live') {
+                                showMemeOverlay({
+                                    people: lastLoadedData.people,
+                                    events: [{
+                                        person_id: updatedEvent.person_id,
+                                        points: updatedEvent.points,
+                                        reason: updatedEvent.reason,
+                                        db_id: updatedEvent.id
+                                    }]
+                                });
+                                // Add to event list for history/leaderboard updates
+                                lastLoadedData.events.unshift({
+                                    id: updatedEvent.person_id,
+                                    date: updatedEvent.date,
+                                    points: updatedEvent.points,
+                                    reason: updatedEvent.reason,
+                                    db_id: updatedEvent.id
+                                });
+                            }
+                        } else {
+                            // Just an update to vouches
+                            lastLoadedData.pending[index] = updatedEvent;
+                        }
+                        // Refresh UI
+                        renderPending(lastLoadedData.pending, lastLoadedData);
+                        const leaderboard = computeLeaderboard(lastLoadedData);
+                        renderHeroStats(leaderboard, lastLoadedData.events);
+                        renderLeaderboard(leaderboard);
+                        renderHistory(lastLoadedData);
+                    }
+                }
+            })
+            .subscribe();
+    }
+
     // --- Main ---
     async function main() {
         initParticles();
@@ -514,6 +575,8 @@
             setTimeout(() => showMemeOverlay(data), 1200);
             sessionStorage.setItem('prestige_vouch_triggered', 'true');
         }
+
+        setupRealtime();
     }
 
     // Go!

@@ -180,6 +180,40 @@ body {
     flex: 0 0 100px;
 }
 
+.point-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.toggle-group {
+    display: flex;
+    background: var(--surface-hover);
+    border-radius: 8px;
+    padding: 2px;
+    border: 1px solid var(--border);
+}
+
+.toggle-btn {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-muted);
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.toggle-btn.positive.active {
+    background: rgba(102, 204, 0, 0.2);
+    color: #6c0;
+}
+
+.toggle-btn.negative.active {
+    background: rgba(255, 68, 68, 0.2);
+    color: #f44;
+}
+
 label {
     font-size: 0.7rem;
     color: var(--text-sec);
