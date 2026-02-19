@@ -248,6 +248,7 @@
 
             const card = document.createElement('div');
             card.className = 'pending-card';
+            card.id = `pending-card-${event.id}`;
             card.innerHTML = `
                 <div class="vouch-count">${approvals.length} / 2 VOUCHES</div>
                 <div class="pending-info">
@@ -475,13 +476,20 @@
             .eq('id', eventId);
 
         if (!updateErr) {
-            if (newStatus === 'live') {
-                showMemeOverlay({
-                    people: lastLoadedData.people,
-                    events: [{ person_id: event.person_id, points: event.points, reason: event.reason, db_id: event.id }]
-                });
+            // If it just turned live, show animations and hide card immediately
+            if (newStatus === 'live' || newStatus === 'denied') {
+                const card = document.getElementById(`pending-card-${eventId}`);
+                if (card) card.classList.add('vanishing');
+
+                if (newStatus === 'live') {
+                    showMemeOverlay({
+                        people: lastLoadedData.people,
+                        events: [{ person_id: event.person_id, points: event.points, reason: event.reason, db_id: event.id }]
+                    });
+                }
             }
-            main();
+            // Re-fetch everything to update the leaderboard/queue
+            setTimeout(() => main(), 400); // Slight delay so the transition finishes
         }
     };
 

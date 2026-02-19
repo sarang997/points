@@ -837,6 +837,13 @@ body {
   color: var(--text-muted);
 }
 
+.pending-card.vanishing {
+  transform: translateY(-20px) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* --- Footer --- */
 .footer {
   position: relative;
