@@ -162,9 +162,22 @@
         const SUPABASE_URL = 'https://kxyudtpxjgqekkmgpigb.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4eXVkdHB4amdxZWtrbWdwaWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0NTEyODEsImV4cCI6MjA4NzAyNzI4MX0.alLyHpEXOUgAFQritkaWB6YM3O3c12yaBisgbB7UkXI';
 
-        let supabaseClient;
         if (typeof supabase !== 'undefined') {
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // --- Fingerprinting ---
+        async function getBrowserFingerprint() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = "top"; ctx.font = "14px 'Arial'"; ctx.textBaseline = "alphabetic";
+            ctx.fillStyle = "#f60"; ctx.fillRect(125, 1, 62, 20);
+            ctx.fillStyle = "#069"; ctx.fillText("PrestigePoints-FP", 2, 15);
+            ctx.fillStyle = "rgba(102, 204, 0, 0.7)"; ctx.fillText("PrestigePoints-FP", 4, 17);
+            const b64 = canvas.toDataURL().replace("data:image/png;base64,", "");
+            const bin = atob(b64);
+            const crc = (str) => { let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; } return h; };
+            return `${navigator.userAgent.length}-${screen.width}x${screen.height}-${crc(bin)}`;
         }
 
         let allData = { people: {}, events: [] };
@@ -206,7 +219,8 @@
                     date: e.date,
                     points: e.points,
                     reason: e.reason,
-                    db_id: e.id // keep db id for updates/deletes
+                    status: e.status, // capture status
+                    db_id: e.id
                 }));
 
                 allData = { people, events };
@@ -225,7 +239,6 @@
         function updateStatus(ok) {
             const dot = document.getElementById('git-dot');
             const text = document.getElementById('git-status-text');
-            const pushBtn = document.getElementById('push-btn');
 
             if (ok) {
                 dot.className = 'git-dot clean';
@@ -234,12 +247,6 @@
                 dot.className = 'git-dot';
                 text.textContent = 'Supabase Disconnected';
             }
-
-            // Push button is now less relevant for data, but we'll keep it as a "Manual Sync"
-            // or just hide the push section if it's confusing.
-            // For now, let's just make it refresh.
-            pushBtn.disabled = false;
-            pushBtn.innerHTML = '🔄 Refresh Data';
         }
 
         function renderPeopleSelect() {
@@ -305,13 +312,15 @@
                 const person = allData.people[event.id] || { name: event.id, avatar: '👤' };
                 const sign = event.points >= 0 ? '+' : '';
                 const cls = event.points >= 0 ? 'positive' : 'negative';
+                const statusTag = event.status === 'pending' ? '<span class="status-tag">PENDING</span>' : '';
+
                 return `
-                    <div class="event-row">
+                    <div class="event-row ${event.status === 'pending' ? 'is-pending' : ''}">
                         <div class="event-main">
                             <span class="event-avatar">${person.avatar}</span>
                             <div class="event-info">
                                 <div class="event-top">
-                                    <span class="event-name">${person.name}</span>
+                                    <span class="event-name">${person.name} ${statusTag}</span>
                                     <span class="event-points ${cls}">${sign}${event.points}</span>
                                 </div>
                                 <div class="event-reason">${event.reason}</div>
@@ -387,11 +396,23 @@
             const points = parseInt(document.getElementById('event-points').value);
             const reason = document.getElementById('event-reason').value;
             const date = document.getElementById('event-date').value || new Date().toISOString().split('T')[0];
+            const finger = await getBrowserFingerprint();
 
-            const { error } = await supabaseClient.from('events').insert([{ person_id, points, reason, date }]);
+            // All events added via admin are now 'pending' for the community vouch system
+            const { error } = await supabaseClient.from('events').insert([{
+                person_id,
+                points,
+                reason,
+                date,
+                status: 'pending',
+                fingerprint: finger,
+                approvals: [],
+                denials: []
+            }]);
+
             if (error) toast(error.message, 'error');
             else {
-                toast('Event added!');
+                toast('Event proposed! Awaiting community vouch.');
                 document.getElementById('event-points').value = '';
                 document.getElementById('event-reason').value = '';
                 refresh();
@@ -438,11 +459,6 @@
             renderEventsList();
         });
 
-        // Manual Refresh button
-        document.getElementById('push-btn').addEventListener('click', () => {
-            refresh();
-            toast('Data refreshed 🔄');
-        });
 
         // Set today's date as default
         document.getElementById('event-date').value = new Date().toISOString().split('T')[0];

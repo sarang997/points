@@ -277,22 +277,6 @@
         });
     }
 
-    function updateProposalForm(people) {
-        const select = document.getElementById('proposal-person');
-        if (!select) return;
-
-        const current = select.value;
-        select.innerHTML = '<option value="" disabled selected>Select Person...</option>';
-
-        Object.keys(people).sort().forEach(id => {
-            const opt = document.createElement('option');
-            opt.value = id;
-            opt.textContent = `${people[id].name} ${people[id].avatar}`;
-            select.appendChild(opt);
-        });
-
-        if (people[current]) select.value = current;
-    }
 
     function formatDate(dateStr) {
         const d = new Date(dateStr + 'T12:00:00');
@@ -463,19 +447,17 @@
 
     // --- Main ---
     // --- Global Actions ---
+    let lastLoadedData = { people: {}, events: [], pending: [], finger: null };
+
     window.vouchEvent = async function (eventId, type) {
-        // Fetch current event state
-        const { data: event, error: fetchErr } = await supabaseClient
-            .from('events')
-            .select('*')
-            .eq('id', eventId)
-            .single();
-
-        if (fetchErr || !event) return;
-
         const finger = await getBrowserFingerprint();
-        let approvals = Array.isArray(event.approvals) ? event.approvals : [];
-        let denials = Array.isArray(event.denials) ? event.denials : [];
+
+        // Use local data for logic and animation
+        const event = (lastLoadedData.pending || []).find(e => e.id === eventId);
+        if (!event) return;
+
+        let approvals = Array.isArray(event.approvals) ? [...event.approvals] : [];
+        let denials = Array.isArray(event.denials) ? [...event.denials] : [];
 
         if (type === 'approve') {
             if (!approvals.includes(finger)) approvals.push(finger);
@@ -492,45 +474,17 @@
             .update({ approvals, denials, status: newStatus })
             .eq('id', eventId);
 
-        if (!updateErr) main(); // Refresh UI
+        if (!updateErr) {
+            if (newStatus === 'live') {
+                showMemeOverlay({
+                    people: lastLoadedData.people,
+                    events: [{ person_id: event.person_id, points: event.points, reason: event.reason, db_id: event.id }]
+                });
+            }
+            main();
+        }
     };
 
-    function setupProposalForm() {
-        const form = document.getElementById('proposal-form');
-        if (!form) return;
-
-        // Remove old listener if it exists by cloning
-        const newForm = form.cloneNode(true);
-        form.parentNode.replaceChild(newForm, form);
-
-        newForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const finger = await getBrowserFingerprint();
-
-            const personId = document.getElementById('proposal-person').value;
-            const points = parseInt(document.getElementById('proposal-points').value);
-            const reason = document.getElementById('proposal-reason').value;
-
-            const { error } = await supabaseClient
-                .from('events')
-                .insert([{
-                    person_id: personId,
-                    points: points,
-                    reason: reason,
-                    status: 'pending',
-                    fingerprint: finger,
-                    approvals: [],
-                    denials: []
-                }]);
-
-            if (error) {
-                alert("Proposal failed. Did you run the SQL migration?");
-            } else {
-                newForm.reset();
-                main(); // Refresh
-            }
-        });
-    }
 
     // --- Main ---
     async function main() {
@@ -538,6 +492,7 @@
 
         const data = await loadData();
         if (!data.people) return;
+        lastLoadedData = data;
 
         const leaderboard = computeLeaderboard(data);
 
@@ -545,11 +500,12 @@
         renderLeaderboard(leaderboard);
         renderHistory(data);
         renderPending(data.pending || [], data);
-        updateProposalForm(data.people);
-        setupProposalForm();
 
-        // Show meme overlay for recent live events
-        setTimeout(() => showMemeOverlay(data), 1200);
+        // Show meme overlay for recent live events on initial load only
+        if (!sessionStorage.getItem('prestige_vouch_triggered')) {
+            setTimeout(() => showMemeOverlay(data), 1200);
+            sessionStorage.setItem('prestige_vouch_triggered', 'true');
+        }
     }
 
     // Go!
