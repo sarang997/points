@@ -102,7 +102,8 @@
                 date: e.date,
                 points: e.points,
                 reason: e.reason,
-                db_id: e.id
+                db_id: e.id,
+                created_at: e.created_at
             }));
 
             const pendingEvents = allEvents.filter(e => {
@@ -219,12 +220,11 @@
         const now = Date.now();
         const recentThreshold = now - RECENT_HOURS * 60 * 60 * 1000;
 
-        // Sort events by date descending, then by db_id descending
+        // Sort events by created_at descending (absolute reverse-chronological)
         const sorted = [...data.events].sort((a, b) => {
-            const dateCompare = b.date.localeCompare(a.date);
-            if (dateCompare !== 0) return dateCompare;
-            // If date is the same, use db_id as absolute tie-breaker (newest ID first)
-            return Number(b.db_id) - Number(a.db_id);
+            const timeA = new Date(a.created_at || 0).getTime();
+            const timeB = new Date(b.created_at || 0).getTime();
+            return timeB - timeA;
         });
 
         sorted.forEach((event) => {
@@ -595,6 +595,10 @@
             if (!denials.includes(finger)) denials.push(finger);
         }
 
+        let newStatus = 'pending';
+        if (approvals.length >= 1) newStatus = 'live';
+        if (denials.length >= 1) newStatus = 'denied';
+
         const updates = { approvals, denials, status: newStatus };
         if (newStatus === 'live') {
             const now = new Date();
@@ -614,6 +618,10 @@
             item.approvals = approvals;
             item.denials = denials;
             item.status = newStatus;
+            if (newStatus === 'live') {
+                item.date = updates.date;
+                item.created_at = updates.created_at;
+            }
 
             // If it just turned live or denied, show animations and hide card immediately
             if (newStatus === 'live' || newStatus === 'denied') {
@@ -682,7 +690,8 @@
                         date: newItem.date,
                         points: newItem.points,
                         reason: newItem.reason,
-                        db_id: newItem.id
+                        db_id: newItem.id,
+                        created_at: newItem.created_at
                     });
                 } else if (type === 'person') {
                     lastLoadedData.people[newItem.id] = { name: newItem.name, avatar: newItem.avatar };
@@ -714,7 +723,8 @@
                                 date: newItem.date,
                                 points: newItem.points,
                                 reason: newItem.reason,
-                                db_id: newItem.id
+                                db_id: newItem.id,
+                                created_at: newItem.created_at
                             });
                             showMemeOverlay({
                                 people: lastLoadedData.people,
