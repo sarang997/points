@@ -1382,3 +1382,138 @@ body {
 .realtime-update {
   animation: realtime-glow 1.5s ease-out;
 }
+/* --- Side Panel (Issue #1) --- */
+.side-panel-toggle {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-size: 24px;
+  font-family: var(--font-display);
+  cursor: pointer;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.side-panel-toggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.5);
+  background: var(--cyan);
+  color: var(--bg-primary);
+}
+
+.side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 350px;
+  height: 100vh;
+  background: rgba(13, 13, 26, 0.95);
+  backdrop-filter: blur(15px);
+  border-left: 1px solid var(--border);
+  z-index: 2000;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.side-panel.hidden {
+  transform: translateX(100%);
+  display: flex !important; /* Keep it flex but moved off-screen for animation */
+  pointer-events: none;
+}
+
+.side-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 15px;
+}
+
+.side-panel-header h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.side-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 30px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.side-panel-close:hover {
+  color: var(--red);
+}
+
+.side-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  padding-right: 10px;
+}
+
+.side-panel-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.side-panel-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.side-panel-content section h3 {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.side-panel-content section p,
+.side-panel-content section ul,
+.side-panel-content section ol {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.side-panel-content section ul,
+.side-panel-content section ol {
+  padding-left: 20px;
+}
+
+.side-panel-content section li {
+  margin-bottom: 8px;
+}
+
+.side-panel-content strong {
+  color: var(--cyan);
+}
+
+@media (max-width: 480px) {
+  .side-panel {
+    width: 100%;
+  }
+}

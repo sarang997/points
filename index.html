@@ -175,8 +175,57 @@
     </div>
   </div>
 
+  <!-- Side Help Panel (Issue #1) -->
+  <button id="side-panel-toggle" class="side-panel-toggle" title="Help & Rules"
+    onclick="document.getElementById('side-panel').classList.remove('hidden')">
+    <span class="icon">?</span>
+  </button>
+
+  <div id="side-panel" class="side-panel hidden">
+    <div class="side-panel-header">
+      <h2>Rules & Info</h2>
+      <button class="side-panel-close"
+        onclick="document.getElementById('side-panel').classList.add('hidden')">&times;</button>
+    </div>
+    <div class="side-panel-content">
+      <section>
+        <h3>✨ What is Aura?</h3>
+        <p>Aura (Prestige Points) is a measure of your social standing and contributions. Good deeds give +Aura, while L
+          moments cost -Aura.</p>
+      </section>
+
+      <section>
+        <h3>📝 How to Log Aura</h3>
+        <ol>
+          <li>Click <strong>"+ Add Event"</strong>.</li>
+          <li>Select the person and enter the points.</li>
+          <li>Provide a clear, descriptive reason.</li>
+          <li>Submit! Your entry goes to the <strong>Voting Queue</strong>.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h3>🗳️ The Vouch System</h3>
+        <ul>
+          <li>All proposals start as "Pending".</li>
+          <li><strong>Vouch:</strong> Approves the event. One vouch makes it <strong>Live</strong>.</li>
+          <li>Once live, points are added to the leaderboard and the event appears in the history.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>⚖️ Rules</h3>
+        <ul>
+          <li>No self-vouching (honor system).</li>
+          <li>Be honest with point values.</li>
+          <li>Vouches are final.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
   <!-- Toast notifications -->
-  <div id="toast-container"></div>
+  <div id="toast-container" class="toast-container"></div>
   <footer class="footer">
     <p>PRESTIGE POINTS — Your reputation, quantified.</p>
     <p class="footer-small">Powered by vibes and accountability</p>
