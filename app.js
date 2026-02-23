@@ -66,9 +66,12 @@
         try {
             const finger = await getBrowserFingerprint();
 
-            // Fetch people and initial events
-            const [peopleRes, eventsRes] = await Promise.all([
+            // Fetch people, all live points (for accurate LB), and initial meta events (for history)
+            const [peopleRes, globalPointsRes, initialEventsRes] = await Promise.all([
                 supabaseClient.from('people').select('*'),
+                supabaseClient.from('events')
+                    .select('person_id, points')
+                    .or('status.eq.live,status.is.null,approvals.not.is.null'), // rough live check
                 supabaseClient.from('events')
                     .select('*')
                     .order('created_at', { ascending: false })
@@ -76,9 +79,10 @@
             ]);
 
             if (peopleRes.error) throw peopleRes.error;
-            if (eventsRes.error) throw eventsRes.error;
+            if (globalPointsRes.error) throw globalPointsRes.error;
+            if (initialEventsRes.error) throw initialEventsRes.error;
 
-            currentHistoryOffset = eventsRes.data.length;
+            currentHistoryOffset = initialEventsRes.data.length;
 
             const people = {};
             const pendingPeople = [];
@@ -94,10 +98,11 @@
                 }
             });
 
-            const allEvents = eventsRes.data;
+            // Filter points: only ones that are truly live
+            const globalPoints = globalPointsRes.data;
 
-            // Filter events: live ones go to leaderboard, pending ones to the vouch queue
-            const live = allEvents.filter(e => e.status === 'live' || !e.status || (Array.isArray(e.approvals) && e.approvals.length >= 1)).map(e => ({
+            // Meta events for history
+            const historyEvents = initialEventsRes.data.filter(e => e.status === 'live' || !e.status || (Array.isArray(e.approvals) && e.approvals.length >= 1)).map(e => ({
                 id: e.person_id,
                 date: e.date,
                 points: e.points,
@@ -106,13 +111,13 @@
                 created_at: e.created_at
             }));
 
-            const pendingEvents = allEvents.filter(e => {
+            const pendingEvents = initialEventsRes.data.filter(e => {
                 const isLive = e.status === 'live' || (Array.isArray(e.approvals) && e.approvals.length >= 1);
                 return e.status === 'pending' && !isLive;
             });
             const pending = [...pendingEvents, ...pendingPeople];
 
-            return { people, events: live, pending, finger };
+            return { people, events: historyEvents, globalPoints, pending, finger };
         } catch (e) {
             console.error('Failed to load data from Supabase:', e);
             return { people: {}, events: [], pending: [], finger: null };
@@ -125,12 +130,20 @@
         for (const [id, person] of Object.entries(data.people)) {
             totals[id] = { id, ...person, score: 0, recentChange: false };
         }
+
+        // Use all-time global points for individual scores
+        if (Array.isArray(data.globalPoints)) {
+            for (const item of data.globalPoints) {
+                if (!totals[item.person_id]) continue;
+                totals[item.person_id].score += item.points;
+            }
+        }
+
+        // Recent change animation still uses the metadata events (recent history)
         const now = Date.now();
         const recentThreshold = now - RECENT_HOURS * 60 * 60 * 1000;
-
         for (const event of data.events) {
             if (!totals[event.id]) continue;
-            totals[event.id].score += event.points;
             const eventTime = new Date(event.date + 'T12:00:00').getTime();
             if (eventTime >= recentThreshold) {
                 totals[event.id].recentChange = true;
@@ -141,10 +154,10 @@
     }
 
     // --- Render Hero Stats ---
-    function renderHeroStats(leaderboard, events) {
+    function renderHeroStats(leaderboard, globalPoints) {
         const container = document.getElementById('hero-stats');
         const totalPeople = leaderboard.length;
-        const totalEvents = events.length;
+        const totalEvents = Array.isArray(globalPoints) ? globalPoints.length : 0;
         const totalPoints = leaderboard.reduce((sum, p) => sum + Math.max(0, p.score), 0);
 
         container.innerHTML = `
@@ -692,6 +705,7 @@
                         db_id: newItem.id,
                         created_at: newItem.created_at
                     });
+                    lastLoadedData.globalPoints.push({ person_id: newItem.person_id, points: newItem.points });
                 } else if (type === 'person') {
                     lastLoadedData.people[newItem.id] = { name: newItem.name, avatar: newItem.avatar };
                 }
@@ -729,6 +743,7 @@
                                 db_id: newItem.id,
                                 created_at: newItem.created_at
                             });
+                            lastLoadedData.globalPoints.push({ person_id: newItem.person_id, points: newItem.points });
                             showMemeOverlay({
                                 people: lastLoadedData.people,
                                 events: [lastLoadedData.events[0]]
@@ -751,8 +766,10 @@
                         date: newItem.date,
                         points: newItem.points,
                         reason: newItem.reason,
-                        db_id: newItem.id
+                        db_id: newItem.id,
+                        created_at: newItem.created_at
                     });
+                    lastLoadedData.globalPoints.push({ person_id: newItem.person_id, points: newItem.points });
                 }
             }
         } else if (eventType === 'DELETE') {
@@ -890,7 +907,7 @@
 
         const leaderboard = computeLeaderboard(data);
 
-        renderHeroStats(leaderboard, data.events);
+        renderHeroStats(leaderboard, data.globalPoints);
         renderLeaderboard(leaderboard);
         renderHistory(data);
         renderPending(data.pending || [], data);
