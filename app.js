@@ -595,14 +595,18 @@
             if (!denials.includes(finger)) denials.push(finger);
         }
 
-        let newStatus = 'pending';
-        if (approvals.length >= 1) newStatus = 'live';
-        if (denials.length >= 1) newStatus = 'denied';
+        const updates = { approvals, denials, status: newStatus };
+        if (newStatus === 'live') {
+            const now = new Date();
+            updates.date = now.toISOString().split('T')[0];
+            // Update created_at so absolute sorting (latest first) is preserved
+            updates.created_at = now.toISOString();
+        }
 
         const table = type === 'event' ? 'events' : 'people';
         const { error: updateErr } = await supabaseClient
             .from(table)
-            .update({ approvals, denials, status: newStatus })
+            .update(updates)
             .eq('id', id);
 
         if (!updateErr) {
@@ -640,22 +644,6 @@
     function setupRealtime() {
         if (!supabaseClient) return;
 
-        const updateStatus = (status) => {
-            const badges = document.querySelectorAll('.sync-status');
-            badges.forEach(b => {
-                if (status === 'SUBSCRIBED') {
-                    b.textContent = '● Live';
-                    b.className = 'sync-status live';
-                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                    b.textContent = '○ Offline';
-                    b.className = 'sync-status offline';
-                } else {
-                    b.textContent = '○ Connecting...';
-                    b.className = 'sync-status connecting';
-                }
-            });
-        };
-
         // Monitor Events
         const eventChannel = supabaseClient.channel('public:events');
         eventChannel
@@ -664,7 +652,6 @@
             })
             .subscribe((status) => {
                 console.log('Realtime events status:', status);
-                updateStatus(status);
             });
 
         // Monitor People (Drafts)

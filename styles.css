@@ -1378,33 +1378,3 @@ body {
 .realtime-update {
   animation: realtime-glow 1.5s ease-out;
 }
-
-/* --- Sync Status Badge --- */
-.sync-status {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.3s ease;
-}
-
-.sync-status.live {
-  color: var(--cyan);
-  background: rgba(0, 229, 255, 0.1);
-}
-
-.sync-status.offline {
-  color: var(--red);
-  background: rgba(255, 61, 0, 0.1);
-}
-
-.sync-status.connecting {
-  color: var(--text-muted);
-  opacity: 0.5;
-}
