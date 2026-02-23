@@ -713,6 +713,10 @@
             if (pendingIndex !== -1) {
                 if (isLiveNow || isDeniedNow) {
                     // Graduated from pending
+                    // For observers: add vanishing class before it disappears in next render
+                    const card = document.getElementById(`pending-card-${type}-${newItem.id}`);
+                    if (card) card.classList.add('vanishing');
+
                     lastLoadedData.pending.splice(pendingIndex, 1);
 
                     if (isLiveNow) {

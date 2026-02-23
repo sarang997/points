@@ -45,6 +45,10 @@ body {
   position: relative;
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* --- Particle Canvas --- */
 #particles {
   position: fixed;
