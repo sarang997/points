@@ -44,8 +44,19 @@
     <h1 class="glitch" data-text="PRESTIGE POINTS">PRESTIGE POINTS</h1>
     <p class="hero-sub">Your actions have consequences. Your score tells the truth.</p>
     <div class="hero-stats" id="hero-stats"></div>
-  </header>
 
+    <!-- Quick Actions -->
+    <div class="quick-actions" style="margin-top: 30px; margin-bottom: 0;">
+      <button class="btn btn-primary btn-fab"
+        onclick="document.getElementById('propose-event-modal').classList.remove('hidden')">
+        + Propose Event
+      </button>
+      <button class="btn btn-ghost btn-fab"
+        onclick="document.getElementById('add-person-modal').classList.remove('hidden')">
+        Draft Player
+      </button>
+    </div>
+  </header>
 
   <!-- Pending Approvals -->
   <section class="section hidden" id="pending-section">
@@ -88,10 +99,66 @@
     </div>
   </section>
 
-  <!-- Admin Command Center -->
-  <a href="admin.html" class="vault-link" title="Command Center">⚙️</a>
+  <!-- Propose Event Modal -->
+  <div class="modal-overlay hidden" id="propose-event-modal">
+    <div class="modal">
+      <h3>📜 Propose Event</h3>
+      <p class="modal-subtitle">Proposals require 2 vouches to impact the leaderboard.</p>
+      <form id="propose-event-form">
+        <div class="form-row">
+          <div class="form-group" style="flex: 2;">
+            <label for="event-person">Person</label>
+            <select id="event-person" required>
+              <option value="">Select person...</option>
+            </select>
+          </div>
+          <div class="form-group form-group-small" style="flex: 1;">
+            <label for="event-points">Points</label>
+            <input type="number" id="event-points" placeholder="e.g. 50" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="event-reason">Reason</label>
+          <input type="text" id="event-reason" placeholder="e.g. Cooked an amazing dinner" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost"
+            onclick="document.getElementById('propose-event-modal').classList.add('hidden')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Proposal</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  <!-- Footer -->
+  <!-- Add Person Modal -->
+  <div class="modal-overlay hidden" id="add-person-modal">
+    <div class="modal">
+      <h3>👤 Draft New Player</h3>
+      <p class="modal-subtitle">Add a new player to the roster.</p>
+      <form id="add-person-form">
+        <div class="form-group">
+          <label for="person-name">Name</label>
+          <input type="text" id="person-name" placeholder="e.g. Alice" required>
+        </div>
+        <div class="form-group">
+          <label for="person-id">ID (Handle lowercase no spaces)</label>
+          <input type="text" id="person-id" placeholder="e.g. alice" required>
+        </div>
+        <div class="form-group">
+          <label for="person-avatar">Emoji Avatar</label>
+          <input type="text" id="person-avatar" placeholder="🐱" value="👤" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost"
+            onclick="document.getElementById('add-person-modal').classList.add('hidden')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Draft Player</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast-container"></div>
   <footer class="footer">
     <p>PRESTIGE POINTS — Your reputation, quantified.</p>
     <p class="footer-small">Powered by vibes and accountability</p>

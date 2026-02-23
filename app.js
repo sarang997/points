@@ -73,8 +73,14 @@
             if (eventsRes.error) throw eventsRes.error;
 
             const people = {};
+            const pendingPeople = [];
+
             peopleRes.data.forEach(p => {
-                people[p.id] = { name: p.name, avatar: p.avatar };
+                if (p.status === 'pending') {
+                    pendingPeople.push(p);
+                } else {
+                    people[p.id] = { name: p.name, avatar: p.avatar };
+                }
             });
 
             const allEvents = eventsRes.data;
@@ -88,7 +94,8 @@
                 db_id: e.id
             }));
 
-            const pending = allEvents.filter(e => e.status === 'pending');
+            const pendingEvents = allEvents.filter(e => e.status === 'pending');
+            const pending = [...pendingEvents, ...pendingPeople];
 
             return { people, events: live, pending, finger };
         } catch (e) {
@@ -224,12 +231,12 @@
     }
 
     // --- Vouch System UI ---
-    function renderPending(pending, data) {
+    function renderPending(pendingItems, data) {
         const container = document.getElementById('pending-container');
         const section = document.getElementById('pending-section');
         if (!container || !section) return;
 
-        if (pending.length === 0) {
+        if (pendingItems.length === 0) {
             section.classList.add('hidden');
             return;
         }
@@ -237,43 +244,94 @@
         section.classList.remove('hidden');
         container.innerHTML = '';
 
-        pending.forEach(event => {
-            const person = data.people[event.person_id] || { name: 'Unknown', avatar: '👤' };
-            const isGain = event.points >= 0;
-            const approvals = Array.isArray(event.approvals) ? event.approvals : [];
-            const denials = Array.isArray(event.denials) ? event.denials : [];
-
+        pendingItems.forEach(item => {
+            const isEvent = item.points !== undefined;
+            const approvals = Array.isArray(item.approvals) ? item.approvals : [];
+            const denials = Array.isArray(item.denials) ? item.denials : [];
             const hasVoted = approvals.includes(data.finger) || denials.includes(data.finger);
-            const isCreator = event.fingerprint === data.finger;
+            const isCreator = item.fingerprint === data.finger;
+
+            const progress = (approvals.length / 2) * 100;
+            const remaining = Math.max(0, 2 - approvals.length);
 
             const card = document.createElement('div');
-            card.className = 'pending-card';
-            card.id = `pending-card-${event.id}`;
-            card.innerHTML = `
-                <div class="vouch-count">${approvals.length} / 2 VOUCHES</div>
-                <div class="pending-info">
-                    <div class="pending-header">
-                        <span class="pending-person">${person.name} ${person.avatar}</span>
-                        <span class="pending-points ${isGain ? 'positive' : 'negative'}">
-                            ${isGain ? '+' : ''}${event.points}
-                        </span>
+            card.className = `pending-card type-${isEvent ? 'event' : 'player'}`;
+            card.id = `pending-card-${isEvent ? 'event' : 'person'}-${item.id}`;
+
+            if (isEvent) {
+                const person = data.people[item.person_id] || { name: 'Unknown', avatar: '👤' };
+                const isGain = item.points >= 0;
+                card.innerHTML = `
+                    <div class="pending-type-badge">EVENT PROPOSAL</div>
+                    <div class="pending-info">
+                        <div class="pending-header">
+                            <span class="pending-person">${person.avatar} ${person.name}</span>
+                            <span class="pending-points-chip ${isGain ? 'positive' : 'negative'}">
+                                ${isGain ? '+' : ''}${item.points}
+                            </span>
+                        </div>
+                        <div class="pending-reason-box">
+                            <span class="pending-reason">"${escapeHtml(item.reason)}"</span>
+                        </div>
                     </div>
-                    <span class="pending-reason">"${event.reason}"</span>
-                    <span class="pending-vouchers">
-                        ${approvals.length > 0 ? `Vouched by ${approvals.length} device(s)` : 'No vouches yet'}
-                    </span>
-                </div>
-                <div class="voting-actions">
-                    <button class="btn-vouch approve" onclick="vouchEvent(${event.id}, 'approve')" 
-                        ${hasVoted || isCreator ? 'disabled' : ''}>
-                        ${isCreator ? 'Your Proposal' : (hasVoted ? 'Vouched ✅' : 'Vouch ✅')}
-                    </button>
-                    <button class="btn-vouch deny" onclick="vouchEvent(${event.id}, 'deny')"
-                        ${hasVoted || isCreator ? 'disabled' : ''}>
-                        Deny ❌
-                    </button>
-                </div>
-            `;
+                    
+                    <div class="vouch-progress-container">
+                        <div class="vouch-status-text">
+                            <span>Vouches</span>
+                            <span>${approvals.length} / 2</span>
+                        </div>
+                        <div class="vouch-bar-bg">
+                            <div class="vouch-bar-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="voting-actions">
+                        <button class="btn-vouch approve" onclick="vouchItem('${item.id}', 'event', 'approve')" 
+                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ${isCreator ? 'YOUR PROPOSAL' : (hasVoted ? 'Vouched ✅' : 'VOUCH ✅')}
+                        </button>
+                        <button class="btn-vouch deny" onclick="vouchItem('${item.id}', 'event', 'deny')"
+                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ❌
+                        </button>
+                    </div>
+                `;
+            } else {
+                card.innerHTML = `
+                    <div class="pending-type-badge">PLAYER DRAFT</div>
+                    <div class="pending-info">
+                        <div class="pending-header">
+                            <span class="pending-person">${item.avatar} ${item.name}</span>
+                            <span class="pending-points-chip" style="color: #0096ff;">NEW</span>
+                        </div>
+                        <div class="pending-reason-box">
+                            <span class="pending-reason">Join as @${item.id}</span>
+                        </div>
+                    </div>
+
+                    <div class="vouch-progress-container">
+                        <div class="vouch-status-text">
+                            <span>Vouches</span>
+                            <span>${approvals.length} / 2</span>
+                        </div>
+                        <div class="vouch-bar-bg">
+                            <div class="vouch-bar-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="voting-actions">
+                        <button class="btn-vouch approve" onclick="vouchItem('${item.id}', 'person', 'approve')" 
+                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ${isCreator ? 'YOUR DRAFT' : (hasVoted ? 'Vouched ✅' : 'VOUCH ✅')}
+                        </button>
+                        <button class="btn-vouch deny" onclick="vouchItem('${item.id}', 'person', 'deny')"
+                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ❌
+                        </button>
+                    </div>
+                `;
+            }
+
             container.appendChild(card);
         });
     }
@@ -450,17 +508,17 @@
     // --- Global Actions ---
     let lastLoadedData = { people: {}, events: [], pending: [], finger: null };
 
-    window.vouchEvent = async function (eventId, type) {
+    window.vouchItem = async function (id, type, vote) {
         const finger = await getBrowserFingerprint();
 
         // Use local data for logic and animation
-        const event = (lastLoadedData.pending || []).find(e => e.id === eventId);
-        if (!event) return;
+        const item = (lastLoadedData.pending || []).find(e => String(e.id) === String(id) && ((type === 'event' && e.points !== undefined) || (type === 'person' && e.points === undefined)));
+        if (!item) return;
 
-        let approvals = Array.isArray(event.approvals) ? [...event.approvals] : [];
-        let denials = Array.isArray(event.denials) ? [...event.denials] : [];
+        let approvals = Array.isArray(item.approvals) ? [...item.approvals] : [];
+        let denials = Array.isArray(item.denials) ? [...item.denials] : [];
 
-        if (type === 'approve') {
+        if (vote === 'approve') {
             if (!approvals.includes(finger)) approvals.push(finger);
         } else {
             if (!denials.includes(finger)) denials.push(finger);
@@ -470,26 +528,31 @@
         if (approvals.length >= 2) newStatus = 'live';
         if (denials.length >= 2) newStatus = 'denied';
 
+        const table = type === 'event' ? 'events' : 'people';
         const { error: updateErr } = await supabaseClient
-            .from('events')
+            .from(table)
             .update({ approvals, denials, status: newStatus })
-            .eq('id', eventId);
+            .eq('id', id);
 
         if (!updateErr) {
-            // If it just turned live, show animations and hide card immediately
+            // If it just turned live or denied, show animations and hide card immediately
             if (newStatus === 'live' || newStatus === 'denied') {
-                const card = document.getElementById(`pending-card-${eventId}`);
+                const card = document.getElementById(`pending-card-${type}-${id}`);
                 if (card) card.classList.add('vanishing');
 
-                if (newStatus === 'live') {
+                if (newStatus === 'live' && type === 'event') {
                     showMemeOverlay({
                         people: lastLoadedData.people,
-                        events: [{ person_id: event.person_id, points: event.points, reason: event.reason, db_id: event.id }]
+                        events: [{ person_id: item.person_id, points: item.points, reason: item.reason, db_id: item.id }]
                     });
+                } else if (newStatus === 'live' && type === 'person') {
+                    showToast(`${item.name} officially joined the game!`);
                 }
             }
             // Re-fetch everything to update the leaderboard/queue
             setTimeout(() => main(), 400); // Slight delay so the transition finishes
+        } else {
+            showToast(updateErr.message, 'error');
         }
     };
 
@@ -499,60 +562,182 @@
     function setupRealtime() {
         if (!supabaseClient) return;
 
-        const channel = supabaseClient
+        // Monitor Events
+        supabaseClient
             .channel('public:events')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
-                if (payload.eventType === 'INSERT') {
-                    // New event proposed
-                    const event = payload.new;
-                    if (event.status === 'pending') {
-                        lastLoadedData.pending.push(event);
-                        renderPending(lastLoadedData.pending, lastLoadedData);
-                    }
-                } else if (payload.eventType === 'UPDATE') {
-                    // Event vouched or status changed
-                    const updatedEvent = payload.new;
-                    const index = lastLoadedData.pending.findIndex(e => e.id === updatedEvent.id);
-
-                    if (index !== -1) {
-                        if (updatedEvent.status !== 'pending') {
-                            // Event approved/denied - remove from pending locally
-                            lastLoadedData.pending.splice(index, 1);
-
-                            // If live, show overlay for everyone!
-                            if (updatedEvent.status === 'live') {
-                                showMemeOverlay({
-                                    people: lastLoadedData.people,
-                                    events: [{
-                                        person_id: updatedEvent.person_id,
-                                        points: updatedEvent.points,
-                                        reason: updatedEvent.reason,
-                                        db_id: updatedEvent.id
-                                    }]
-                                });
-                                // Add to event list for history/leaderboard updates
-                                lastLoadedData.events.unshift({
-                                    id: updatedEvent.person_id,
-                                    date: updatedEvent.date,
-                                    points: updatedEvent.points,
-                                    reason: updatedEvent.reason,
-                                    db_id: updatedEvent.id
-                                });
-                            }
-                        } else {
-                            // Just an update to vouches
-                            lastLoadedData.pending[index] = updatedEvent;
-                        }
-                        // Refresh UI
-                        renderPending(lastLoadedData.pending, lastLoadedData);
-                        const leaderboard = computeLeaderboard(lastLoadedData);
-                        renderHeroStats(leaderboard, lastLoadedData.events);
-                        renderLeaderboard(leaderboard);
-                        renderHistory(lastLoadedData);
-                    }
-                }
+                handleRealtimePayload(payload, 'event');
             })
             .subscribe();
+
+        // Monitor People (Drafts)
+        supabaseClient
+            .channel('public:people')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'people' }, payload => {
+                handleRealtimePayload(payload, 'person');
+            })
+            .subscribe();
+    }
+
+    function handleRealtimePayload(payload, type) {
+        if (payload.eventType === 'INSERT') {
+            const item = payload.new;
+            if (item.status === 'pending') {
+                lastLoadedData.pending.push(item);
+                renderPending(lastLoadedData.pending, lastLoadedData);
+            } else if (item.status === 'live' && type === 'person') {
+                // Instantly added person (e.g. via backend migration)
+                lastLoadedData.people[item.id] = { name: item.name, avatar: item.avatar };
+                const leaderboard = computeLeaderboard(lastLoadedData);
+                renderHeroStats(leaderboard, lastLoadedData.events);
+                renderLeaderboard(leaderboard);
+            }
+        } else if (payload.eventType === 'UPDATE') {
+            const updatedItem = payload.new;
+            const index = lastLoadedData.pending.findIndex(e => String(e.id) === String(updatedItem.id) && ((type === 'event' && e.points !== undefined) || (type === 'person' && e.points === undefined)));
+
+            if (index !== -1) {
+                if (updatedItem.status !== 'pending') {
+                    // Approved or denied - remove from pending
+                    lastLoadedData.pending.splice(index, 1);
+
+                    if (updatedItem.status === 'live') {
+                        if (type === 'event') {
+                            showMemeOverlay({
+                                people: lastLoadedData.people,
+                                events: [{
+                                    person_id: updatedItem.person_id,
+                                    points: updatedItem.points,
+                                    reason: updatedItem.reason,
+                                    db_id: updatedItem.id
+                                }]
+                            });
+                            lastLoadedData.events.unshift({
+                                id: updatedItem.person_id,
+                                date: updatedItem.date,
+                                points: updatedItem.points,
+                                reason: updatedItem.reason,
+                                db_id: updatedItem.id
+                            });
+                        } else if (type === 'person') {
+                            lastLoadedData.people[updatedItem.id] = { name: updatedItem.name, avatar: updatedItem.avatar };
+                        }
+                    }
+                } else {
+                    // Just a vouch update
+                    lastLoadedData.pending[index] = updatedItem;
+                }
+
+                // Refresh UI
+                renderPending(lastLoadedData.pending, lastLoadedData);
+                const leaderboard = computeLeaderboard(lastLoadedData);
+                renderHeroStats(leaderboard, lastLoadedData.events);
+                renderLeaderboard(leaderboard);
+                if (type === 'event') renderHistory(lastLoadedData);
+
+                // Re-render form select options if a player was added
+                if (type === 'person' && updatedItem.status === 'live') {
+                    setupForms(lastLoadedData);
+                }
+            }
+        }
+    }
+
+    // --- Form Handlers & Setup ---
+    function setupForms(data) {
+        // Populate the person select dropdown
+        const select = document.getElementById('event-person');
+        if (select) {
+            select.innerHTML = '<option value="">Select person...</option>';
+            for (const [id, person] of Object.entries(data.people)) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = `${person.avatar} ${person.name}`;
+                select.appendChild(opt);
+            }
+        }
+
+        // Handle Add Person form
+        const addPersonForm = document.getElementById('add-person-form');
+        if (addPersonForm && !addPersonForm.dataset.initialized) {
+            addPersonForm.dataset.initialized = 'true';
+            addPersonForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('person-id').value.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const name = document.getElementById('person-name').value;
+                const avatar = document.getElementById('person-avatar').value || '👤';
+                const finger = await getBrowserFingerprint();
+
+                const { error } = await supabaseClient.from('people').insert([{
+                    id,
+                    name,
+                    avatar,
+                    status: 'pending',
+                    fingerprint: finger,
+                    approvals: [],
+                    denials: []
+                }]);
+
+                if (error) {
+                    showToast(error.message, 'error');
+                } else {
+                    showToast(`Draft proposed for ${name}! Awaiting vouches.`);
+                    e.target.reset();
+                    document.getElementById('person-avatar').value = '👤';
+                    document.getElementById('add-person-modal').classList.add('hidden');
+                    setTimeout(() => main(), 500);
+                }
+            });
+        }
+
+        // Handle Propose Event form
+        const proposeEventForm = document.getElementById('propose-event-form');
+        if (proposeEventForm && !proposeEventForm.dataset.initialized) {
+            proposeEventForm.dataset.initialized = 'true';
+            proposeEventForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const person_id = document.getElementById('event-person').value;
+                const points = parseInt(document.getElementById('event-points').value);
+                const reason = document.getElementById('event-reason').value;
+                const date = new Date().toISOString().split('T')[0];
+                const finger = await getBrowserFingerprint();
+
+                const { error } = await supabaseClient.from('events').insert([{
+                    person_id,
+                    points,
+                    reason,
+                    date,
+                    status: 'pending',
+                    fingerprint: finger,
+                    approvals: [],
+                    denials: []
+                }]);
+
+                if (error) {
+                    showToast(error.message, 'error');
+                } else {
+                    showToast('Event proposed! Awaiting community vouch.');
+                    e.target.reset();
+                    document.getElementById('propose-event-modal').classList.add('hidden');
+                    // Realtime will pick this up and add to queue
+                }
+            });
+        }
+    }
+
+    // --- Toast Notifications ---
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const t = document.createElement('div');
+        t.className = `toast toast-${type}`;
+        t.textContent = message;
+        container.appendChild(t);
+        requestAnimationFrame(() => t.classList.add('show'));
+        setTimeout(() => {
+            t.classList.remove('show');
+            setTimeout(() => t.remove(), 300);
+        }, 3000);
     }
 
     // --- Main ---
@@ -569,6 +754,7 @@
         renderLeaderboard(leaderboard);
         renderHistory(data);
         renderPending(data.pending || [], data);
+        setupForms(data);
 
         // Show meme overlay for recent live events on initial load only
         if (!sessionStorage.getItem('prestige_vouch_triggered')) {
@@ -576,7 +762,11 @@
             sessionStorage.setItem('prestige_vouch_triggered', 'true');
         }
 
-        setupRealtime();
+        // Only setup realtime once
+        if (!window.realtimeInitialized) {
+            setupRealtime();
+            window.realtimeInitialized = true;
+        }
     }
 
     // Go!
