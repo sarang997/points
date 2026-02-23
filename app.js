@@ -76,17 +76,20 @@
             const pendingPeople = [];
 
             peopleRes.data.forEach(p => {
-                if (p.status === 'pending') {
-                    pendingPeople.push(p);
-                } else {
+                const approvals = Array.isArray(p.approvals) ? p.approvals : [];
+                const isLive = p.status === 'live' || approvals.length >= 1;
+
+                if (isLive) {
                     people[p.id] = { name: p.name, avatar: p.avatar };
+                } else {
+                    pendingPeople.push(p);
                 }
             });
 
             const allEvents = eventsRes.data;
 
             // Filter events: live ones go to leaderboard, pending ones to the vouch queue
-            const live = allEvents.filter(e => e.status === 'live' || !e.status).map(e => ({
+            const live = allEvents.filter(e => e.status === 'live' || !e.status || (Array.isArray(e.approvals) && e.approvals.length >= 1)).map(e => ({
                 id: e.person_id,
                 date: e.date,
                 points: e.points,
@@ -94,7 +97,10 @@
                 db_id: e.id
             }));
 
-            const pendingEvents = allEvents.filter(e => e.status === 'pending');
+            const pendingEvents = allEvents.filter(e => {
+                const isLive = e.status === 'live' || (Array.isArray(e.approvals) && e.approvals.length >= 1);
+                return e.status === 'pending' && !isLive;
+            });
             const pending = [...pendingEvents, ...pendingPeople];
 
             return { people, events: live, pending, finger };
@@ -251,8 +257,8 @@
             const hasVoted = approvals.includes(data.finger) || denials.includes(data.finger);
             const isCreator = item.fingerprint === data.finger;
 
-            const progress = (approvals.length / 2) * 100;
-            const remaining = Math.max(0, 2 - approvals.length);
+            const progress = (approvals.length / 1) * 100;
+            const remaining = Math.max(0, 1 - approvals.length);
 
             const card = document.createElement('div');
             card.className = `pending-card type-${isEvent ? 'event' : 'player'}`;
@@ -278,7 +284,7 @@
                     <div class="vouch-progress-container">
                         <div class="vouch-status-text">
                             <span>Vouches</span>
-                            <span>${approvals.length} / 2</span>
+                            <span>${approvals.length} / 1</span>
                         </div>
                         <div class="vouch-bar-bg">
                             <div class="vouch-bar-fill" style="width: ${progress}%"></div>
@@ -312,7 +318,7 @@
                     <div class="vouch-progress-container">
                         <div class="vouch-status-text">
                             <span>Vouches</span>
-                            <span>${approvals.length} / 2</span>
+                            <span>${approvals.length} / 1</span>
                         </div>
                         <div class="vouch-bar-bg">
                             <div class="vouch-bar-fill" style="width: ${progress}%"></div>
@@ -525,8 +531,8 @@
         }
 
         let newStatus = 'pending';
-        if (approvals.length >= 2) newStatus = 'live';
-        if (denials.length >= 2) newStatus = 'denied';
+        if (approvals.length >= 1) newStatus = 'live';
+        if (denials.length >= 1) newStatus = 'denied';
 
         const table = type === 'event' ? 'events' : 'people';
         const { error: updateErr } = await supabaseClient
@@ -597,11 +603,15 @@
             const index = lastLoadedData.pending.findIndex(e => String(e.id) === String(updatedItem.id) && ((type === 'event' && e.points !== undefined) || (type === 'person' && e.points === undefined)));
 
             if (index !== -1) {
-                if (updatedItem.status !== 'pending') {
+                const approvals = Array.isArray(updatedItem.approvals) ? updatedItem.approvals : [];
+                const isLiveNow = updatedItem.status === 'live' || approvals.length >= 1;
+                const isDeniedNow = updatedItem.status === 'denied';
+
+                if (isLiveNow || isDeniedNow) {
                     // Approved or denied - remove from pending
                     lastLoadedData.pending.splice(index, 1);
 
-                    if (updatedItem.status === 'live') {
+                    if (isLiveNow) {
                         if (type === 'event') {
                             showMemeOverlay({
                                 people: lastLoadedData.people,
