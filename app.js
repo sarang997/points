@@ -144,7 +144,7 @@
         const container = document.getElementById('hero-stats');
         const totalPeople = leaderboard.length;
         const totalEvents = events.length;
-        const totalPoints = leaderboard.reduce((sum, p) => sum + Math.abs(p.score), 0);
+        const totalPoints = leaderboard.reduce((sum, p) => sum + Math.max(0, p.score), 0);
 
         container.innerHTML = `
       <div class="hero-stat">
@@ -219,11 +219,12 @@
         const now = Date.now();
         const recentThreshold = now - RECENT_HOURS * 60 * 60 * 1000;
 
-        // Sort events by date descending
+        // Sort events by date descending, then by db_id descending
         const sorted = [...data.events].sort((a, b) => {
             const dateCompare = b.date.localeCompare(a.date);
             if (dateCompare !== 0) return dateCompare;
-            return data.events.indexOf(b) - data.events.indexOf(a);
+            // If date is the same, use db_id as absolute tie-breaker (newest ID first)
+            return Number(b.db_id) - Number(a.db_id);
         });
 
         sorted.forEach((event) => {
@@ -605,6 +606,11 @@
             .eq('id', id);
 
         if (!updateErr) {
+            // Optimistic update: instantly reflect in local state to bridge the latency gap
+            item.approvals = approvals;
+            item.denials = denials;
+            item.status = newStatus;
+
             // If it just turned live or denied, show animations and hide card immediately
             if (newStatus === 'live' || newStatus === 'denied') {
                 const card = document.getElementById(`pending-card-${type}-${id}`);
@@ -615,12 +621,14 @@
                         people: lastLoadedData.people,
                         events: [{ person_id: item.person_id, points: item.points, reason: item.reason, db_id: item.id }]
                     });
-                } else if (newStatus === 'live' && type === 'person') {
-                    showToast(`${item.name} officially joined the game!`);
                 }
+            } else {
+                // Just more vouches - refresh pending UI immediately
+                renderPending(lastLoadedData.pending, lastLoadedData);
             }
-            // Re-fetch everything to update the leaderboard/queue
-            setTimeout(() => main(), 400); // Slight delay so the transition finishes
+
+            // Still call main() to ensure full leaderboard sync, but UI already looks right
+            setTimeout(() => main(), 1000);
         } else {
             showToast(updateErr.message, 'error');
         }
@@ -632,17 +640,36 @@
     function setupRealtime() {
         if (!supabaseClient) return;
 
+        const updateStatus = (status) => {
+            const badges = document.querySelectorAll('.sync-status');
+            badges.forEach(b => {
+                if (status === 'SUBSCRIBED') {
+                    b.textContent = '● Live';
+                    b.className = 'sync-status live';
+                } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                    b.textContent = '○ Offline';
+                    b.className = 'sync-status offline';
+                } else {
+                    b.textContent = '○ Connecting...';
+                    b.className = 'sync-status connecting';
+                }
+            });
+        };
+
         // Monitor Events
-        supabaseClient
-            .channel('public:events')
+        const eventChannel = supabaseClient.channel('public:events');
+        eventChannel
             .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
                 handleRealtimePayload(payload, 'event');
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log('Realtime events status:', status);
+                updateStatus(status);
+            });
 
         // Monitor People (Drafts)
-        supabaseClient
-            .channel('public:people')
+        const peopleChannel = supabaseClient.channel('public:people');
+        peopleChannel
             .on('postgres_changes', { event: '*', schema: 'public', table: 'people' }, payload => {
                 handleRealtimePayload(payload, 'person');
             })
