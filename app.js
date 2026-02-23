@@ -615,16 +615,11 @@
 
         if (!updateErr) {
             // Optimistic update: instantly reflect in local state to bridge the latency gap
-            item.approvals = approvals;
-            item.denials = denials;
-            item.status = newStatus;
-            if (newStatus === 'live') {
-                item.date = updates.date;
-                item.created_at = updates.created_at;
-            }
-
-            // If it just turned live or denied, show animations and hide card immediately
+            // If it just turned live or denied, remove from pending immediately so other syncs don't re-render it
             if (newStatus === 'live' || newStatus === 'denied') {
+                const pIndex = lastLoadedData.pending.findIndex(e => String(e.id) === String(id));
+                if (pIndex !== -1) lastLoadedData.pending.splice(pIndex, 1);
+
                 const card = document.getElementById(`pending-card-${type}-${id}`);
                 if (card) card.classList.add('vanishing');
 
@@ -635,12 +630,16 @@
                     });
                 }
             } else {
-                // Just more vouches - refresh pending UI immediately
+                // Just more vouches - update local state and refresh pending UI immediately
+                item.approvals = approvals;
+                item.denials = denials;
+                item.status = newStatus;
                 renderPending(lastLoadedData.pending, lastLoadedData);
             }
 
             // Still call main() to ensure full leaderboard sync, but UI already looks right
-            setTimeout(() => main(), 1000);
+            // We use a longer delay for the final sync to allow animations to finish
+            setTimeout(() => main(), 1200);
         } else {
             showToast(updateErr.message, 'error');
         }
