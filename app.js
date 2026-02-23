@@ -729,6 +729,7 @@
                     showToast('Event proposed! Awaiting community vouch.');
                     e.target.reset();
                     document.getElementById('propose-event-modal').classList.add('hidden');
+                    setTimeout(() => main(), 500);
                     // Realtime will pick this up and add to queue
                 }
             });
