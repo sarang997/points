@@ -75,7 +75,17 @@
       <h2>🏅 Leaderboard</h2>
       <span class="section-badge">RANKED</span>
     </div>
-    <div class="leaderboard" id="leaderboard"></div>
+    <div class="leaderboard-container">
+      <div id="leaderboard" class="leaderboard scroll-container"></div>
+
+      <!-- Rank Legend -->
+      <div class="rank-legend">
+        <div class="legend-item"><span class="tier-icon">🏆</span> Overlord (1000+)</div>
+        <div class="legend-item"><span class="tier-icon">⭐</span> Main Character (500+)</div>
+        <div class="legend-item"><span class="tier-icon">🤖</span> NPC (0+)</div>
+        <div class="legend-item"><span class="tier-icon">💀</span> Cooked (< 0)</div>
+        </div>
+      </div>
   </section>
 
   <!-- History -->
@@ -84,7 +94,7 @@
       <h2>📜 Event History</h2>
       <span class="section-badge">ALL TIME</span>
     </div>
-    <div class="table-wrapper">
+    <div class="table-wrapper scroll-container">
       <table class="history-table" id="history-table">
         <thead>
           <tr>
@@ -96,6 +106,10 @@
         </thead>
         <tbody id="history-body"></tbody>
       </table>
+    </div>
+    <div class="load-more-container">
+      <button id="load-more-btn" class="btn btn-ghost" style="margin: 20px auto; display: block;">Load Older
+        Events</button>
     </div>
   </section>
 

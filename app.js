@@ -17,6 +17,9 @@
 
     const MEME_DISPLAY_TIME = 3000; // ms per notification card
     const RECENT_HOURS = 24;
+    const INITIAL_LOAD_LIMIT = 20;
+    const HISTORY_PAGE_SIZE = 20;
+    let currentHistoryOffset = 0;
 
     // --- Fingerprinting (Vouch System) ---
     async function getBrowserFingerprint() {
@@ -63,14 +66,19 @@
         try {
             const finger = await getBrowserFingerprint();
 
-            // Fetch people and events in parallel
+            // Fetch people and initial events
             const [peopleRes, eventsRes] = await Promise.all([
                 supabaseClient.from('people').select('*'),
-                supabaseClient.from('events').select('*').order('created_at', { ascending: false })
+                supabaseClient.from('events')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .range(0, INITIAL_LOAD_LIMIT - 1)
             ]);
 
             if (peopleRes.error) throw peopleRes.error;
             if (eventsRes.error) throw eventsRes.error;
+
+            currentHistoryOffset = eventsRes.data.length;
 
             const people = {};
             const pendingPeople = [];
@@ -185,7 +193,7 @@
           <div class="lb-name">${person.name}</div>
           <div class="lb-tier">${tier.icon} ${tier.name}</div>
         </div>
-        <div>
+        <div class="lb-score-box">
           <div class="lb-score ${scoreClass}">${sign}${person.score.toLocaleString()}</div>
           <div class="lb-score-label">prestige</div>
         </div>
@@ -234,6 +242,60 @@
             `;
             tbody.appendChild(tr);
         });
+
+        // Toggle Load More button visibility
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn) {
+            // This is a simple check; ideally we'd get the total count from Supabase
+            // but for now we just show it if we have some events.
+            loadMoreBtn.classList.toggle('hidden', sorted.length < INITIAL_LOAD_LIMIT);
+        }
+    }
+
+    async function loadMoreEvents() {
+        if (!supabaseClient) return;
+
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn) loadMoreBtn.disabled = true;
+
+        try {
+            const { data, error } = await supabaseClient
+                .from('events')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .range(currentHistoryOffset, currentHistoryOffset + HISTORY_PAGE_SIZE - 1);
+
+            if (error) throw error;
+
+            if (data.length > 0) {
+                const newEvents = data.map(e => ({
+                    id: e.person_id,
+                    date: e.date,
+                    points: e.points,
+                    reason: e.reason,
+                    db_id: e.id,
+                    status: e.status
+                }));
+
+                // Update local data
+                lastLoadedData.events = [...lastLoadedData.events, ...newEvents.filter(e => e.status === 'live' || !e.status)];
+                currentHistoryOffset += data.length;
+
+                // Re-render history
+                renderHistory(lastLoadedData);
+
+                if (data.length < HISTORY_PAGE_SIZE) {
+                    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+                }
+            } else {
+                if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+            }
+        } catch (e) {
+            console.error('Failed to load more events:', e);
+            showToast('Failed to load more events', 'error');
+        } finally {
+            if (loadMoreBtn) loadMoreBtn.disabled = false;
+        }
     }
 
     // --- Vouch System UI ---
@@ -781,5 +843,11 @@
     }
 
     // Go!
-    document.addEventListener('DOMContentLoaded', main);
+    document.addEventListener('DOMContentLoaded', () => {
+        main();
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', loadMoreEvents);
+        }
+    });
 })();

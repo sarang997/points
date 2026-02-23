@@ -259,6 +259,12 @@ body {
   text-transform: uppercase;
 }
 
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+
 .section-badge {
   font-family: var(--font-display);
   font-size: 0.6rem;
@@ -269,112 +275,157 @@ body {
   border-radius: 100px;
 }
 
-/* --- Leaderboard Cards --- */
+/* --- Scrollable Containers --- */
+.scroll-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scroll-behavior: smooth;
+}
+
+.scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- Leaderboard Layout Overhaul --- */
+.rank-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 24px;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  margin-bottom: 24px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.leaderboard-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+.leaderboard-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+
+.leaderboard-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.leaderboard-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+
 .leaderboard {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  /* Fixed gap to prevent overlap */
+  width: 100%;
 }
 
 .lb-card {
   display: grid;
-  grid-template-columns: 50px 48px 1fr auto;
+  grid-template-columns: 48px 48px 1fr 100px;
   align-items: center;
   gap: 16px;
-  padding: 20px 24px;
-  background: var(--bg-card);
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  transition: all 0.3s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
-}
-
-.lb-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  border-radius: 4px 0 0 4px;
+  flex-shrink: 0;
+  /* Prevent compression */
 }
 
 .lb-card:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.1);
-  transform: translateX(4px);
-}
-
-.lb-card.rank-1::before {
-  background: linear-gradient(180deg, var(--gold), var(--gold-dim));
-}
-
-.lb-card.rank-2::before {
-  background: linear-gradient(180deg, #c0c0c0, #888);
-}
-
-.lb-card.rank-3::before {
-  background: linear-gradient(180deg, #cd7f32, #8b5a2b);
-}
-
-.lb-card.rank-negative::before {
-  background: linear-gradient(180deg, var(--red), #991122);
-}
-
-.lb-card.rank-1 {
-  background: rgba(255, 215, 0, 0.04);
-  border-color: rgba(255, 215, 0, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: scale(1.005) translateX(2px);
+  z-index: 2;
 }
 
 .lb-rank {
   font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 900;
+  font-size: 1.1rem;
+  font-weight: 800;
   color: var(--text-muted);
   text-align: center;
 }
 
-.lb-card.rank-1 .lb-rank {
-  color: var(--gold);
-}
-
-.lb-card.rank-2 .lb-rank {
-  color: #c0c0c0;
-}
-
-.lb-card.rank-3 .lb-rank {
-  color: #cd7f32;
-}
-
 .lb-avatar {
-  font-size: 2rem;
+  font-size: 1.8rem;
   text-align: center;
+  display: flex;
+  justify-content: center;
 }
 
 .lb-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
+  /* CRITICAL for ellipsis */
 }
 
 .lb-name {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
 }
 
 .lb-tier {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-secondary);
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.lb-score-box {
+  text-align: right;
 }
 
 .lb-score {
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  text-align: right;
-  min-width: 80px;
 }
 
 .lb-score.positive {
@@ -386,13 +437,84 @@ body {
 }
 
 .lb-score-label {
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 2px;
-  text-align: right;
-  margin-top: 2px;
+  letter-spacing: 1.5px;
+  margin-top: 1px;
 }
+
+/* Vertical Tier Stripes */
+.lb-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+}
+
+.lb-card.rank-1::before {
+  background: var(--gold);
+}
+
+.lb-card.rank-2::before {
+  background: #c0c0c0;
+}
+
+.lb-card.rank-3::before {
+  background: #cd7f32;
+}
+
+.lb-card.rank-negative::before {
+  background: var(--red);
+}
+
+.lb-card.rank-1 {
+  background: rgba(255, 215, 0, 0.05);
+  border-color: rgba(255, 215, 0, 0.1);
+}
+
+.lb-card.rank-1 .lb-rank {
+  color: var(--gold);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 600px) {
+  .lb-card {
+    grid-template-columns: 36px 36px 1fr 80px;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .lb-rank {
+    font-size: 0.9rem;
+  }
+
+  .lb-avatar {
+    font-size: 1.5rem;
+  }
+
+  .lb-name {
+    font-size: 0.9rem;
+  }
+
+  .lb-score {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .rank-legend {
+    gap: 8px 16px;
+    padding: 12px;
+  }
+}
+
+
+
+
+
 
 /* Recently changed - pulsing glow */
 .lb-card.recent {
