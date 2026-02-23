@@ -183,6 +183,7 @@
 
             const card = document.createElement('div');
             card.className = `lb-card ${rankClass} ${recentClass}`;
+            card.setAttribute('data-db-id', person.id); // The handle (e.g. sarang)
             card.style.animationDelay = `${0.3 + index * 0.08}s`;
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
@@ -324,6 +325,7 @@
 
             const card = document.createElement('div');
             card.className = `pending-card type-${isEvent ? 'event' : 'player'}`;
+            card.setAttribute('data-db-id', item.id);
             card.id = `pending-card-${isEvent ? 'event' : 'person'}-${item.id}`;
 
             if (isEvent) {
@@ -648,71 +650,109 @@
     }
 
     function handleRealtimePayload(payload, type) {
-        if (payload.eventType === 'INSERT') {
-            const item = payload.new;
-            if (item.status === 'pending') {
-                lastLoadedData.pending.push(item);
-                renderPending(lastLoadedData.pending, lastLoadedData);
-            } else if (item.status === 'live' && type === 'person') {
-                // Instantly added person (e.g. via backend migration)
-                lastLoadedData.people[item.id] = { name: item.name, avatar: item.avatar };
-                const leaderboard = computeLeaderboard(lastLoadedData);
-                renderHeroStats(leaderboard, lastLoadedData.events);
-                renderLeaderboard(leaderboard);
+        console.log('Realtime update:', payload.eventType, type, payload.new?.id || payload.old?.id);
+
+        const eventType = payload.eventType;
+        const newItem = payload.new;
+        const oldItem = payload.old;
+
+        if (eventType === 'INSERT') {
+            const approvals = Array.isArray(newItem.approvals) ? newItem.approvals : [];
+            const isLive = newItem.status === 'live' || approvals.length >= 1;
+
+            if (isLive) {
+                // Instantly live item (rare but possible)
+                if (type === 'event') {
+                    lastLoadedData.events.unshift({
+                        id: newItem.person_id,
+                        date: newItem.date,
+                        points: newItem.points,
+                        reason: newItem.reason,
+                        db_id: newItem.id
+                    });
+                } else if (type === 'person') {
+                    lastLoadedData.people[newItem.id] = { name: newItem.name, avatar: newItem.avatar };
+                }
+            } else if (newItem.status === 'pending') {
+                // New proposal in queue
+                lastLoadedData.pending.push(newItem);
             }
-        } else if (payload.eventType === 'UPDATE') {
-            const updatedItem = payload.new;
-            const index = lastLoadedData.pending.findIndex(e => String(e.id) === String(updatedItem.id) && ((type === 'event' && e.points !== undefined) || (type === 'person' && e.points === undefined)));
+        } else if (eventType === 'UPDATE') {
+            const approvals = Array.isArray(newItem.approvals) ? newItem.approvals : [];
+            const isLiveNow = newItem.status === 'live' || approvals.length >= 1;
+            const isDeniedNow = newItem.status === 'denied';
 
-            if (index !== -1) {
-                const approvals = Array.isArray(updatedItem.approvals) ? updatedItem.approvals : [];
-                const isLiveNow = updatedItem.status === 'live' || approvals.length >= 1;
-                const isDeniedNow = updatedItem.status === 'denied';
+            // Find if it was in pending
+            const pendingIndex = lastLoadedData.pending.findIndex(e =>
+                String(e.id) === String(newItem.id) &&
+                ((type === 'event' && e.points !== undefined) || (type === 'person' && e.points === undefined))
+            );
 
+            if (pendingIndex !== -1) {
                 if (isLiveNow || isDeniedNow) {
-                    // Approved or denied - remove from pending
-                    lastLoadedData.pending.splice(index, 1);
+                    // Graduated from pending
+                    lastLoadedData.pending.splice(pendingIndex, 1);
 
                     if (isLiveNow) {
                         if (type === 'event') {
+                            lastLoadedData.events.unshift({
+                                id: newItem.person_id,
+                                date: newItem.date,
+                                points: newItem.points,
+                                reason: newItem.reason,
+                                db_id: newItem.id
+                            });
                             showMemeOverlay({
                                 people: lastLoadedData.people,
-                                events: [{
-                                    person_id: updatedItem.person_id,
-                                    points: updatedItem.points,
-                                    reason: updatedItem.reason,
-                                    db_id: updatedItem.id
-                                }]
-                            });
-                            lastLoadedData.events.unshift({
-                                id: updatedItem.person_id,
-                                date: updatedItem.date,
-                                points: updatedItem.points,
-                                reason: updatedItem.reason,
-                                db_id: updatedItem.id
+                                events: [lastLoadedData.events[0]]
                             });
                         } else if (type === 'person') {
-                            lastLoadedData.people[updatedItem.id] = { name: updatedItem.name, avatar: updatedItem.avatar };
+                            lastLoadedData.people[newItem.id] = { name: newItem.name, avatar: newItem.avatar };
+                            setupForms(lastLoadedData);
                         }
                     }
                 } else {
-                    // Just a vouch update
-                    lastLoadedData.pending[index] = updatedItem;
+                    // Internal update (e.g. more vouches)
+                    lastLoadedData.pending[pendingIndex] = newItem;
                 }
-
-                // Refresh UI
-                renderPending(lastLoadedData.pending, lastLoadedData);
-                const leaderboard = computeLeaderboard(lastLoadedData);
-                renderHeroStats(leaderboard, lastLoadedData.events);
-                renderLeaderboard(leaderboard);
-                if (type === 'event') renderHistory(lastLoadedData);
-
-                // Re-render form select options if a player was added
-                if (type === 'person' && updatedItem.status === 'live') {
-                    setupForms(lastLoadedData);
+            } else if (isLiveNow && type === 'event') {
+                // Check if we already have it in events (prevention of duplicates)
+                const alreadyHave = lastLoadedData.events.some(e => String(e.db_id) === String(newItem.id));
+                if (!alreadyHave) {
+                    lastLoadedData.events.unshift({
+                        id: newItem.person_id,
+                        date: newItem.date,
+                        points: newItem.points,
+                        reason: newItem.reason,
+                        db_id: newItem.id
+                    });
                 }
             }
+        } else if (eventType === 'DELETE') {
+            const index = lastLoadedData.pending.findIndex(e =>
+                String(e.id) === String(oldItem.id) &&
+                ((type === 'event' && e.points !== undefined) || (type === 'person' && e.points === undefined))
+            );
+            if (index !== -1) {
+                lastLoadedData.pending.splice(index, 1);
+            }
         }
+
+        // Refresh Everything
+        const leaderboard = computeLeaderboard(lastLoadedData);
+        renderHeroStats(leaderboard, lastLoadedData.events);
+        renderLeaderboard(leaderboard);
+        renderPending(lastLoadedData.pending, lastLoadedData);
+        if (type === 'event') renderHistory(lastLoadedData);
+
+        // Visual feedback: briefly highlight updated items if they are in the DOM
+        setTimeout(() => {
+            const cards = document.querySelectorAll(`[data-db-id="${newItem?.id || oldItem?.id}"]`);
+            cards.forEach(card => {
+                card.classList.add('realtime-update');
+                setTimeout(() => card.classList.remove('realtime-update'), 2000);
+            });
+        }, 100);
     }
 
     // --- Form Handlers & Setup ---
