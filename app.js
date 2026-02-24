@@ -1,5 +1,5 @@
 /* ============================================
-   PRESTIGE POINTS — App Logic
+   PRESTIGE POINTS — App Logic test 1 2
    ============================================ */
 
 (function () {
