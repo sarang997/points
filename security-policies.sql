@@ -18,16 +18,16 @@ DECLARE
 BEGIN
     -- Only check if a fingerprint is provided
     IF NEW.fingerprint IS NOT NULL THEN
-        -- Check how many items this fingerprint created in the last 5 minutes across BOTH tables
+        -- Check how many items this fingerprint created in the last 1 second across BOTH tables
         SELECT COUNT(*) INTO recent_count
         FROM (
-            SELECT 1 FROM events WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '5 minutes'
+            SELECT 1 FROM events WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '1 second'
             UNION ALL
-            SELECT 1 FROM people WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '5 minutes'
+            SELECT 1 FROM people WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '1 second'
         ) AS recent_activity;
 
         IF recent_count > 0 THEN
-            RAISE EXCEPTION 'Rate limit exceeded: You can only propose 1 event or player every 5 minutes.';
+            RAISE EXCEPTION 'Rate limit exceeded: You can only propose 1 event or player every 1 second.';
         END IF;
     END IF;
     
@@ -59,11 +59,8 @@ BEGIN
         IF NEW.approvals ? NEW.fingerprint THEN
             RAISE EXCEPTION 'You cannot vouch for your own proposal.';
         END IF;
-
-        -- Prevent creator from being in the denials list
-        IF NEW.denials ? NEW.fingerprint THEN
-            RAISE EXCEPTION 'You cannot deny your own proposal.';
-        END IF;
+        
+        -- Note: We ALLOW creators to be in the denials list so they can withdraw their own proposals.
         
         -- Ensure a fingerprint isn't in both approvals and denials
         -- (This is a simplified check, in reality the frontend handles this, but good for DB level)

@@ -69,13 +69,15 @@
 
             // Fetch people, all live points (for accurate LB), and initial meta events (for history)
             const [peopleRes, globalPointsRes, initialEventsRes] = await Promise.all([
-                supabaseClient.from('people').select('*'),
+                supabaseClient.from('people').select('*').neq('status', 'denied'),
                 supabaseClient.from('events')
                     .select('person_id, points')
-                    .or('status.eq.live,status.is.null,approvals.not.is.null'), // rough live check
+                    .or('status.eq.live,status.is.null,approvals.not.is.null')
+                    .neq('status', 'denied'), // rough live check
                 supabaseClient.from('events')
                     .select('*')
                     .or('status.eq.live,status.is.null,approvals.not.is.null')
+                    .neq('status', 'denied')
                     .order('created_at', { ascending: false })
                     .range(0, INITIAL_LOAD_LIMIT - 1)
             ]);
@@ -289,6 +291,7 @@
                 .from('events')
                 .select('*')
                 .or('status.eq.live,status.is.null,approvals.not.is.null')
+                .neq('status', 'denied')
                 .order('created_at', { ascending: false })
                 .range(currentHistoryOffset, currentHistoryOffset + HISTORY_PAGE_SIZE - 1);
 
@@ -324,7 +327,7 @@
             renderHistory(lastLoadedData);
         } catch (e) {
             console.error('Failed to load more events:', e);
-            showToast('Failed to load more events', 'error');
+            showToast(getFriendlyErrorMessage(e), 'error');
         } finally {
             if (loadMoreBtn) loadMoreBtn.disabled = false;
         }
@@ -348,7 +351,9 @@
             const isEvent = item.points !== undefined;
             const approvals = Array.isArray(item.approvals) ? item.approvals : [];
             const denials = Array.isArray(item.denials) ? item.denials : [];
-            const hasVoted = approvals.includes(data.finger) || denials.includes(data.finger);
+            const hasApproved = approvals.includes(data.finger);
+            const hasDenied = denials.includes(data.finger);
+            const hasVoted = hasApproved || hasDenied;
             const isCreator = item.fingerprint === data.finger;
 
             const progress = (approvals.length / 1) * 100;
@@ -389,10 +394,10 @@
                     <div class="voting-actions">
                         <button class="btn-vouch approve" onclick="vouchItem('${item.id}', 'event', 'approve')" 
                             ${hasVoted || isCreator ? 'disabled' : ''}>
-                            ${isCreator ? 'YOUR PROPOSAL' : (hasVoted ? 'Vouched ✅' : 'VOUCH ✅')}
+                            ${isCreator ? 'YOUR PROPOSAL' : (hasApproved ? 'Vouched ✅' : (hasDenied ? 'Rejected ❌' : 'VOUCH ✅'))}
                         </button>
                         <button class="btn-vouch deny" onclick="vouchItem('${item.id}', 'event', 'deny')"
-                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ${hasVoted ? 'disabled' : ''}>
                             ❌
                         </button>
                     </div>
@@ -423,10 +428,10 @@
                     <div class="voting-actions">
                         <button class="btn-vouch approve" onclick="vouchItem('${item.id}', 'person', 'approve')" 
                             ${hasVoted || isCreator ? 'disabled' : ''}>
-                            ${isCreator ? 'YOUR DRAFT' : (hasVoted ? 'Vouched ✅' : 'VOUCH ✅')}
+                            ${isCreator ? 'YOUR DRAFT' : (hasApproved ? 'Vouched ✅' : (hasDenied ? 'Rejected ❌' : 'VOUCH ✅'))}
                         </button>
                         <button class="btn-vouch deny" onclick="vouchItem('${item.id}', 'person', 'deny')"
-                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ${hasVoted ? 'disabled' : ''}>
                             ❌
                         </button>
                     </div>
@@ -671,7 +676,7 @@
             // We use a longer delay for the final sync to allow animations to finish
             setTimeout(() => main(), 1200);
         } else {
-            showToast(updateErr.message, 'error');
+            showToast(getFriendlyErrorMessage(updateErr), 'error');
         }
     };
 
@@ -852,7 +857,7 @@
                 }]);
 
                 if (error) {
-                    showToast(error.message, 'error');
+                    showToast(getFriendlyErrorMessage(error), 'error');
                 } else {
                     showToast(`Draft proposed for ${name}! Awaiting vouches.`);
                     e.target.reset();
@@ -887,7 +892,7 @@
                 }]);
 
                 if (error) {
-                    showToast(error.message, 'error');
+                    showToast(getFriendlyErrorMessage(error), 'error');
                 } else {
                     showToast('Event proposed! Awaiting community vouch.');
                     e.target.reset();
@@ -912,6 +917,25 @@
             t.classList.remove('show');
             setTimeout(() => t.remove(), 300);
         }, 3000);
+    }
+
+    function getFriendlyErrorMessage(err) {
+        if (!err) return 'An unknown error occurred';
+        const msg = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
+
+        // Supabase / Postgres error codes
+        if (err.code === '23505') {
+            if (msg.includes('people_pkey')) return 'This handle is already taken. Please choose another.';
+            return 'This item already exists.';
+        }
+
+        // Custom SQL exceptions (P0001) are already human-readable in our security-policies.sql
+        if (err.code === 'P0001') return msg;
+
+        // General fallback
+        if (msg && msg.includes('Failed to fetch')) return 'Connection error: Please check your internet.';
+
+        return msg;
     }
 
     // --- Main ---
