@@ -18,16 +18,16 @@ DECLARE
 BEGIN
     -- Only check if a fingerprint is provided
     IF NEW.fingerprint IS NOT NULL THEN
-        -- Check how many items this fingerprint created in the last 5 minutes across BOTH tables
+        -- Check how many items this fingerprint created in the last 1 second across BOTH tables
         SELECT COUNT(*) INTO recent_count
         FROM (
-            SELECT 1 FROM events WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '5 minutes'
+            SELECT 1 FROM events WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '1 second'
             UNION ALL
-            SELECT 1 FROM people WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '5 minutes'
+            SELECT 1 FROM people WHERE fingerprint = NEW.fingerprint AND created_at > NOW() - INTERVAL '1 second'
         ) AS recent_activity;
 
         IF recent_count > 0 THEN
-            RAISE EXCEPTION 'Rate limit exceeded: You can only propose 1 event or player every 5 minutes.';
+            RAISE EXCEPTION 'Rate limit exceeded: You can only propose 1 event or player every 1 second.';
         END IF;
     END IF;
     
