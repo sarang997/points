@@ -327,7 +327,7 @@
             renderHistory(lastLoadedData);
         } catch (e) {
             console.error('Failed to load more events:', e);
-            showToast('Failed to load more events', 'error');
+            showToast(getFriendlyErrorMessage(e), 'error');
         } finally {
             if (loadMoreBtn) loadMoreBtn.disabled = false;
         }
@@ -676,7 +676,7 @@
             // We use a longer delay for the final sync to allow animations to finish
             setTimeout(() => main(), 1200);
         } else {
-            showToast(updateErr.message, 'error');
+            showToast(getFriendlyErrorMessage(updateErr), 'error');
         }
     };
 
@@ -857,7 +857,7 @@
                 }]);
 
                 if (error) {
-                    showToast(error.message, 'error');
+                    showToast(getFriendlyErrorMessage(error), 'error');
                 } else {
                     showToast(`Draft proposed for ${name}! Awaiting vouches.`);
                     e.target.reset();
@@ -892,7 +892,7 @@
                 }]);
 
                 if (error) {
-                    showToast(error.message, 'error');
+                    showToast(getFriendlyErrorMessage(error), 'error');
                 } else {
                     showToast('Event proposed! Awaiting community vouch.');
                     e.target.reset();
@@ -917,6 +917,25 @@
             t.classList.remove('show');
             setTimeout(() => t.remove(), 300);
         }, 3000);
+    }
+
+    function getFriendlyErrorMessage(err) {
+        if (!err) return 'An unknown error occurred';
+        const msg = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
+
+        // Supabase / Postgres error codes
+        if (err.code === '23505') {
+            if (msg.includes('people_pkey')) return 'This handle is already taken. Please choose another.';
+            return 'This item already exists.';
+        }
+
+        // Custom SQL exceptions (P0001) are already human-readable in our security-policies.sql
+        if (err.code === 'P0001') return msg;
+
+        // General fallback
+        if (msg && msg.includes('Failed to fetch')) return 'Connection error: Please check your internet.';
+
+        return msg;
     }
 
     // --- Main ---
