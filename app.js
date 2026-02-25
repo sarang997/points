@@ -20,6 +20,7 @@
     const INITIAL_LOAD_LIMIT = 20;
     const HISTORY_PAGE_SIZE = 20;
     let currentHistoryOffset = 0;
+    let hasMoreEvents = true; // Track if Supabase might have more
 
     // --- Fingerprinting (Vouch System) ---
     async function getBrowserFingerprint() {
@@ -74,6 +75,7 @@
                     .or('status.eq.live,status.is.null,approvals.not.is.null'), // rough live check
                 supabaseClient.from('events')
                     .select('*')
+                    .or('status.eq.live,status.is.null,approvals.not.is.null')
                     .order('created_at', { ascending: false })
                     .range(0, INITIAL_LOAD_LIMIT - 1)
             ]);
@@ -112,7 +114,7 @@
             }));
 
             const pendingEvents = initialEventsRes.data.filter(e => {
-                const isLive = e.status === 'live' || (Array.isArray(e.approvals) && e.approvals.length >= 1);
+                const isLive = e.status === 'live' || !e.status || (Array.isArray(e.approvals) && e.approvals.length >= 1);
                 return e.status === 'pending' && !isLive;
             });
             const pending = [...pendingEvents, ...pendingPeople];
@@ -258,12 +260,21 @@
             tbody.appendChild(tr);
         });
 
-        // Toggle Load More button visibility
+        // Update Load More button state
         const loadMoreBtn = document.getElementById('load-more-btn');
         if (loadMoreBtn) {
-            // This is a simple check; ideally we'd get the total count from Supabase
-            // but for now we just show it if we have some events.
-            loadMoreBtn.classList.toggle('hidden', sorted.length < INITIAL_LOAD_LIMIT);
+            // Keep it visible at all times as requested
+            loadMoreBtn.classList.remove('hidden');
+
+            if (!hasMoreEvents) {
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'All Events Loaded';
+                loadMoreBtn.classList.add('btn-disabled'); // Optional helper class
+            } else {
+                loadMoreBtn.disabled = false;
+                loadMoreBtn.textContent = 'Load Older Events';
+                loadMoreBtn.classList.remove('btn-disabled');
+            }
         }
     }
 
@@ -277,6 +288,7 @@
             const { data, error } = await supabaseClient
                 .from('events')
                 .select('*')
+                .or('status.eq.live,status.is.null,approvals.not.is.null')
                 .order('created_at', { ascending: false })
                 .range(currentHistoryOffset, currentHistoryOffset + HISTORY_PAGE_SIZE - 1);
 
@@ -293,18 +305,23 @@
                 }));
 
                 // Update local data
-                lastLoadedData.events = [...lastLoadedData.events, ...newEvents.filter(e => e.status === 'live' || !e.status)];
+                const filteredNewEvents = newEvents.filter(e => e.status === 'live' || !e.status);
+                lastLoadedData.events = [...lastLoadedData.events, ...filteredNewEvents];
                 currentHistoryOffset += data.length;
 
                 // Re-render history
                 renderHistory(lastLoadedData);
 
+                // If we got fewer events than requested, we reached the end
                 if (data.length < HISTORY_PAGE_SIZE) {
-                    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+                    hasMoreEvents = false;
                 }
             } else {
-                if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+                hasMoreEvents = false;
             }
+
+            // Re-render history to update button state
+            renderHistory(lastLoadedData);
         } catch (e) {
             console.error('Failed to load more events:', e);
             showToast('Failed to load more events', 'error');
@@ -930,8 +947,9 @@
     document.addEventListener('DOMContentLoaded', () => {
         main();
         const loadMoreBtn = document.getElementById('load-more-btn');
-        if (loadMoreBtn) {
+        if (loadMoreBtn && !loadMoreBtn.dataset.listener) {
             loadMoreBtn.addEventListener('click', loadMoreEvents);
+            loadMoreBtn.dataset.listener = 'true';
         }
     });
 })();
