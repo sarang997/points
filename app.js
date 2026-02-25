@@ -69,13 +69,15 @@
 
             // Fetch people, all live points (for accurate LB), and initial meta events (for history)
             const [peopleRes, globalPointsRes, initialEventsRes] = await Promise.all([
-                supabaseClient.from('people').select('*'),
+                supabaseClient.from('people').select('*').neq('status', 'denied'),
                 supabaseClient.from('events')
                     .select('person_id, points')
-                    .or('status.eq.live,status.is.null,approvals.not.is.null'), // rough live check
+                    .or('status.eq.live,status.is.null,approvals.not.is.null')
+                    .neq('status', 'denied'), // rough live check
                 supabaseClient.from('events')
                     .select('*')
                     .or('status.eq.live,status.is.null,approvals.not.is.null')
+                    .neq('status', 'denied')
                     .order('created_at', { ascending: false })
                     .range(0, INITIAL_LOAD_LIMIT - 1)
             ]);
@@ -289,6 +291,7 @@
                 .from('events')
                 .select('*')
                 .or('status.eq.live,status.is.null,approvals.not.is.null')
+                .neq('status', 'denied')
                 .order('created_at', { ascending: false })
                 .range(currentHistoryOffset, currentHistoryOffset + HISTORY_PAGE_SIZE - 1);
 
@@ -348,7 +351,9 @@
             const isEvent = item.points !== undefined;
             const approvals = Array.isArray(item.approvals) ? item.approvals : [];
             const denials = Array.isArray(item.denials) ? item.denials : [];
-            const hasVoted = approvals.includes(data.finger) || denials.includes(data.finger);
+            const hasApproved = approvals.includes(data.finger);
+            const hasDenied = denials.includes(data.finger);
+            const hasVoted = hasApproved || hasDenied;
             const isCreator = item.fingerprint === data.finger;
 
             const progress = (approvals.length / 1) * 100;
@@ -389,10 +394,10 @@
                     <div class="voting-actions">
                         <button class="btn-vouch approve" onclick="vouchItem('${item.id}', 'event', 'approve')" 
                             ${hasVoted || isCreator ? 'disabled' : ''}>
-                            ${isCreator ? 'YOUR PROPOSAL' : (hasVoted ? 'Vouched ✅' : 'VOUCH ✅')}
+                            ${isCreator ? 'YOUR PROPOSAL' : (hasApproved ? 'Vouched ✅' : (hasDenied ? 'Rejected ❌' : 'VOUCH ✅'))}
                         </button>
                         <button class="btn-vouch deny" onclick="vouchItem('${item.id}', 'event', 'deny')"
-                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ${hasVoted ? 'disabled' : ''}>
                             ❌
                         </button>
                     </div>
@@ -423,10 +428,10 @@
                     <div class="voting-actions">
                         <button class="btn-vouch approve" onclick="vouchItem('${item.id}', 'person', 'approve')" 
                             ${hasVoted || isCreator ? 'disabled' : ''}>
-                            ${isCreator ? 'YOUR DRAFT' : (hasVoted ? 'Vouched ✅' : 'VOUCH ✅')}
+                            ${isCreator ? 'YOUR DRAFT' : (hasApproved ? 'Vouched ✅' : (hasDenied ? 'Rejected ❌' : 'VOUCH ✅'))}
                         </button>
                         <button class="btn-vouch deny" onclick="vouchItem('${item.id}', 'person', 'deny')"
-                            ${hasVoted || isCreator ? 'disabled' : ''}>
+                            ${hasVoted ? 'disabled' : ''}>
                             ❌
                         </button>
                     </div>

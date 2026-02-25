@@ -59,11 +59,8 @@ BEGIN
         IF NEW.approvals ? NEW.fingerprint THEN
             RAISE EXCEPTION 'You cannot vouch for your own proposal.';
         END IF;
-
-        -- Prevent creator from being in the denials list
-        IF NEW.denials ? NEW.fingerprint THEN
-            RAISE EXCEPTION 'You cannot deny your own proposal.';
-        END IF;
+        
+        -- Note: We ALLOW creators to be in the denials list so they can withdraw their own proposals.
         
         -- Ensure a fingerprint isn't in both approvals and denials
         -- (This is a simplified check, in reality the frontend handles this, but good for DB level)
